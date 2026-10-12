@@ -1,0 +1,16 @@
+# Cloudflare Pages 跨域隔离：KataGo 的 WASM 多线程需要 SharedArrayBuffer。
+# 参考 web-katrain 文档与围棋AI选型.md 备注。
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+
+# 模型分片与权重：长缓存（文件内容不变，通过文件名区分版本）
+/ai/*
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: application/octet-stream
+
+/tfjs/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
