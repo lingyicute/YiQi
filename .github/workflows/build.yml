@@ -50,6 +50,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "dist/ 无变化，跳过提交"
           else
-            git commit -m "build: 更新构建产物（源提交 $(git rev-parse --short HEAD)）[skip ci]"
+            git commit -m "build: 更新构建产物（源提交 $(git rev-parse --short HEAD)）"
             git push
           fi
