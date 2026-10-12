@@ -1,0 +1,4 @@
+# KataGo 权重与 TF.js WASM 运行时均为二进制文件
+ai/**/* binary
+public/ai/**/* binary
+public/tfjs/*.wasm binary

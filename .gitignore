@@ -1,0 +1,5 @@
+node_modules/
+*.log
+.DS_Store
+# TF.js WASM 运行时：npm run copy:tfjs-wasm 从 node_modules 拷入
+public/tfjs/

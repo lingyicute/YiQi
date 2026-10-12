@@ -1,0 +1,55 @@
+# YiQi 构建工作流：每次提交立即构建，产物提交回库。
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'dist/**' # 只改产物不触发重建
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# 连续推送时只构建最新一次，避免并行构建互相竞争提交
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Copy TF.js WASM runtime
+        run: npm run copy:tfjs-wasm
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit build output back to repo
+        run: |
+          git config user.name "lingyicute"
+          git config user.email "160479206+lingyicute@users.noreply.github.com"
+          git add -A -f dist
+          if git diff --cached --quiet; then
+            echo "dist/ 无变化，跳过提交"
+          else
+            git commit -m "build: 更新构建产物（源提交 $(git rev-parse --short HEAD)）[skip ci]"
+            git push
+          fi
