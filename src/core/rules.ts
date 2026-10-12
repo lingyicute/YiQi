@@ -163,6 +163,8 @@ export class GoGame {
     this._repetitionKeys = new Set();
     this._positionKeys = new Set();
     this._moves = [];
+    // 空序列时重放循环不执行，必须显式复位行棋方（否则悔棋撤光后残留白方，棋盘冻结）
+    this._currentPlayerCache = 'black';
     for (const m of next) {
       if (m.x === -1 && m.y === -1) this.pass();
       else this.place(m.x, m.y);
