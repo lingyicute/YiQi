@@ -138,6 +138,19 @@ describe('GoGame（goban-engine 封装，中国规则）', () => {
     expect(g.board[4]![4]).toBe(2);
   });
 
+  it('悔棋撤光全部着法后行棋方复位黑方（UI 冻结回归）', () => {
+    const g = new GoGame(9);
+    g.place(2, 2);
+    expect(g.playerToMove).toBe('white');
+    g.undo(1);
+    expect(g.moveNumber).toBe(0);
+    // 回归：空盘时行棋方必须是黑方，否则黑方永远无法落子
+    expect(g.playerToMove).toBe('black');
+    g.place(5, 5);
+    expect(g.board[5]![5]).toBe(1);
+    expect(g.playerToMove).toBe('white');
+  });
+
   it('resetToMoves 重放并保持一致', () => {
     const g = new GoGame(9);
     g.place(2, 2);
