@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-accent="purple">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="YiQi Web - 网页版围棋（中国大陆规则），KataGo 人机对战（四档段位）与双人同屏对战，可选 9/13/19 路">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#14101c">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#faf8fe">
+<title>YiQi Web · 围棋</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='8' fill='%23a78bfa'/%3E%3Ccircle cx='9.2' cy='9.2' r='2.6' fill='%231b1526'/%3E%3Ccircle cx='14.8' cy='9.2' r='2.6' fill='%23ffffff'/%3E%3Ccircle cx='9.2' cy='14.8' r='2.6' fill='%23ffffff'/%3E%3Ccircle cx='14.8' cy='14.8' r='2.6' fill='%231b1526'/%3E%3C/svg%3E">
+<script>
+/* 防闪烁：样式加载前恢复主题与配色 */
+(function(){try{var s=JSON.parse(localStorage.getItem('yiqi.settings')||'null')||{};
+var d=document.documentElement;
+if(s.theme)d.dataset.theme=s.theme;else if(!window.matchMedia('(prefers-color-scheme: dark)').matches)d.dataset.theme='light';
+if(s.accent)d.dataset.accent=s.accent;}catch(e){}})();
+</script>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="app-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="25" height="25" fill="currentColor">
+        <circle cx="8.6" cy="8.6" r="3.1"/>
+        <circle cx="15.4" cy="8.6" r="3.1" fill="none" stroke="currentColor" stroke-width="1.7"/>
+        <circle cx="8.6" cy="15.4" r="3.1" fill="none" stroke="currentColor" stroke-width="1.7"/>
+        <circle cx="15.4" cy="15.4" r="3.1"/>
+      </svg>
+    </div>
+    <span class="brand-name">YiQi</span>
+    <span class="brand-badge">Web</span>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" id="btnTheme" title="切换深色 / 浅色">
+      <svg class="ic-sun" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5 5l1.6 1.6M17.4 17.4 19 19M19 5l-1.6 1.6M6.6 17.4 5 19"/></svg>
+      <svg class="ic-moon" viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.4 13.6A8.6 8.6 0 1 1 10.4 3.6a7 7 0 0 0 10 10z"/></svg>
+    </button>
+    <button class="icon-btn" id="btnPalette" title="选择配色">
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1.3 0 2-.9 2-1.9 0-.5-.2-.9-.5-1.2-.3-.4-.5-.8-.5-1.2 0-1 .8-1.7 1.8-1.7h1.4a4.9 4.9 0 0 0 4.9-4.9C21.1 6.2 17 3 12 3z"/><circle cx="7.6" cy="10.4" r="1.15" fill="currentColor" stroke="none"/><circle cx="11" cy="7.2" r="1.15" fill="currentColor" stroke="none"/><circle cx="15.4" cy="7.6" r="1.15" fill="currentColor" stroke="none"/></svg>
+    </button>
+    <div class="menu-wrap">
+      <button class="icon-btn" id="btnMenu" title="菜单">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4.5 7h15M4.5 12h15M4.5 17h15"/></svg>
+      </button>
+      <div class="menu" id="menu">
+        <button class="menu-item" data-act="what">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="currentColor"><circle cx="6.5" cy="17.5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="17.5" cy="6.5" r="2"/><circle cx="17.5" cy="17.5" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+          什么是围棋？</button>
+        <button class="menu-item" data-act="help">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8.6"/><path d="M9.6 9.2a2.5 2.5 0 0 1 4.9.6c0 1.6-2.3 2-2.3 3.5M12.1 16.8h.01"/></svg>
+          规则说明</button>
+        <button class="menu-item" data-act="records">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 16.5V21M7 4h10v4.5a5 5 0 0 1-10 0z"/><path d="M7 5.5H4.6a2 2 0 0 0 2 3.7H7M17 5.5h2.4a2 2 0 0 1-2 3.7H17"/></svg>
+          战绩统计</button>
+        <button class="menu-item" data-act="sgf">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M12 3 8 7M12 3l4 4"/><path d="M5 13v6a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-6"/></svg>
+          导出棋谱 (SGF)</button>
+        <button class="menu-item" data-act="models">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="3"/><rect x="9.2" y="9.2" width="5.6" height="5.6" rx="1.2"/><path d="M9 2.8v2.2M15 2.8v2.2M9 19v2.2M15 19v2.2M2.8 9h2.2M2.8 15h2.2M19 9h2.2M19 15h2.2"/></svg>
+          AI 模型下载</button>
+        <button class="menu-item" data-act="sound">
+          <svg id="icSoundOn" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+          <svg id="icSoundOff" style="display:none" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          <span id="soundText">落子音效：开</span></button>
+        <button class="menu-item" data-act="coords">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M9 4v16M15 4v16M4 9h16M4 15h16" opacity=".55"/></svg>
+          <span id="coordsText">棋盘坐标：开</span></button>
+        <button class="menu-item" data-act="clear">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5h15M9.5 6V4.5h5V6M6.5 6.5l.9 13.5h9.2l.9-13.5M10 10.5v6M14 10.5v6"/></svg>
+          清除记录</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="side">
+    <div class="title-row">
+      <h1>围棋</h1>
+      <span class="subtitle" id="subtitle">人机对战 · 困难</span>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label" id="moveLabel">第 1 手</div>
+        <div class="stat-value" id="turnValue"><span class="stone-dot black"></span><span>你的回合</span></div>
+      </div>
+      <div class="stat-card accent">
+        <div class="stat-label">用时</div>
+        <div class="stat-value" id="timer">00:00</div>
+      </div>
+      <button class="btn-round btn-tonal" id="btnUndo" title="悔棋 (Z)" disabled>
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 5 4 9.5 8.5 14"/><path d="M4 9.5h9.5a6 6 0 0 1 0 12h-3"/></svg>
+      </button>
+      <button class="btn-round btn-tonal" id="btnPass" title="停一手 (P)">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5.5v13"/><path d="M19 12 9.5 5.5v13z" fill="currentColor" stroke="none"/></svg>
+      </button>
+      <button class="btn-round btn-primary" id="btnRestart" title="重新开始 (R)">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3.5v4h-4"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <section class="board-wrap" id="boardWrap">
+    <canvas id="board" tabindex="0" role="application" aria-label="围棋棋盘。使用方向键或 WASD 移动光标，空格或回车落子，P 停一手"></canvas>
+  </section>
+
+  <section class="tools">
+    <div class="modes" id="modes">
+      <button class="chip" data-mode="ai-easy"><svg class="ck" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>简单</button>
+      <button class="chip" data-mode="ai-medium"><svg class="ck" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>中等</button>
+      <button class="chip" data-mode="ai-hard"><svg class="ck" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>困难</button>
+      <button class="chip" data-mode="ai-expert"><svg class="ck" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>专家</button>
+      <button class="chip" data-mode="pvp"><svg class="ck" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>双人</button>
+    </div>
+
+    <div class="modes" id="sizes" style="margin-top:12px">
+      <span class="chip-label">棋盘</span>
+      <button class="chip small" data-size="9"><svg class="ck" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>9 路</button>
+      <button class="chip small" data-size="13"><svg class="ck" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>13 路</button>
+      <button class="chip small" data-size="19"><svg class="ck" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>19 路</button>
+    </div>
+
+    <div class="modes" id="sides" style="margin-top:12px">
+      <span class="chip-label">人机执子</span>
+      <button class="chip small" data-side="B"><svg class="ck" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg><span class="stone-dot black"></span>我执黑先行</button>
+      <button class="chip small" data-side="W"><svg class="ck" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg><span class="stone-dot white"></span>我执白后行</button>
+    </div>
+
+    <div id="scoringActions">
+      <span id="scoreInfo">黑 0 子 · 白 0 子</span>
+      <button class="btn-pill text" id="btnResume">继续对局</button>
+      <button class="btn-pill primary" id="btnConfirmScore">确认结果</button>
+    </div>
+
+    <div class="help-text" id="playHelp">
+      <div>点击交叉点落子，或使用 <span class="key">↑</span><span class="key">↓</span><span class="key">←</span><span class="key">→</span> / <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> 移动光标，<span class="key">空格</span> / <span class="key">回车</span> 落子</div>
+      <div><span class="key">Z</span> 悔棋 · <span class="key">P</span> 停一手 · <span class="key">R</span> 重开 · 中国规则：数子法，黑贴 7.5 目，禁全局同形，双方连续停一手即终局计分</div>
+    </div>
+    <div class="help-text" id="scoringHelp" style="display:none">
+      <div><b>终局计分</b>：点击棋子可标记 / 恢复死子（人机对局中 AI 已按形势判断自动标记）。地域以小方块着色。</div>
+      <div>确认结果后按中国规则数子法结算（黑贴 7.5 目）；若有异议可「继续对局」。</div>
+    </div>
+  </section>
+</main>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="dialog" id="dialog" role="dialog" aria-modal="true"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

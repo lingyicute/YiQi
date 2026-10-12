@@ -1,0 +1,34 @@
+{
+  "name": "yiqi",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "YiQi Web - 网页版围棋（中国规则），KataGo 人机对战与双人同屏对战",
+  "license": "AGPL-3.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:rules": "vitest run tests/rules.test.ts",
+    "test:engine": "ENGINE_TESTS=1 vitest run tests/engine.test.ts",
+    "copy:tfjs-wasm": "node scripts/copy-tfjs-wasm.mjs"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
+    "@tensorflow/tfjs-backend-webgpu": "^4.22.0",
+    "@tensorflow/tfjs-core": "^4.22.0",
+    "eventemitter3": "^5.0.1",
+    "goban-engine": "8.3.226",
+    "pako": "^2.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/pako": "^2.0.4",
+    "playwright-core": "^1.64.0",
+    "typescript": "5.9",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.9"
+  }
+}
