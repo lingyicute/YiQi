@@ -646,7 +646,7 @@ class App {
     let icon: string, title: string, body: string;
     if (this.mode === 'pvp') {
       icon = ICO.crown;
-      title = this.resultWinner === 'tie' ? '和棋！' : `${this.resultWinner === 'black' ? '黑棋' : '白棋'}获胜！`;
+      title = this.resultWinner === 'tie' ? '和棋!' : `${this.resultWinner === 'black' ? '黑棋' : '白棋'}获胜!`;
       body = `${this.resultText || ''}<br>${meta}`;
     } else if (this.resultWinner !== 'tie' && (this.resultWinner === 'black' ? BLACK : WHITE) === this.humanColor) {
       const diff = MODE_TO_DIFF[this.mode] || 'hard';
@@ -658,12 +658,12 @@ class App {
       body = `恭喜！你执${sideTxt}在「${DIFFICULTY_LABEL[diff]}」难度战胜了 AI（${DIFFICULTY_RANK_LABEL[diff]}）。<br>${this.resultText} · ${meta}<br>本难度执${sideTxt}战绩 ${r.w} 胜 ${r.l} 负`;
     } else if (this.resultWinner === 'tie') {
       icon = ICO.handshake;
-      title = '和棋！';
+      title = '和棋!';
       body = `罕见的结果，势均力敌，${meta}。`;
     } else {
       icon = ICO.trophy;
       title = 'AI 获胜';
-      body = `${this.resultText || ''}，${meta}。<br>调整策略后再试一次吧！`;
+      body = `${this.resultText || ''}，${meta}。<br>调整策略后再试一次吧!`;
     }
     this.openDialog(`
       <div class="dlg-icon">${icon}</div>
