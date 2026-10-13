@@ -104,8 +104,9 @@ class App {
     const mv = $('moveLabel');
     const tv = $('turnValue');
     const caps = this.game.captures;
+    $('capB').textContent = String(caps.byBlack);
+    $('capW').textContent = String(caps.byWhite);
     let label = this.phase === 'scoring' ? '终局计分' : this.over ? `共 ${this.game.moveNumber} 手` : `第 ${this.game.moveNumber + 1} 手`;
-    if (caps.byBlack > 0 || caps.byWhite > 0) label += ` · 黑提 ${caps.byBlack} 白提 ${caps.byWhite}`;
     mv.textContent = label;
 
     const dot = (p: number) => `<span class="stone-dot ${p === BLACK ? 'black' : 'white'}"></span>`;
@@ -129,6 +130,7 @@ class App {
     const humanTurn = !this.over && this.phase === 'play' && (this.mode === 'pvp' || (this.game.playerToMove === 'black' ? BLACK : WHITE) === this.humanColor);
     ($('btnUndo') as HTMLButtonElement).disabled = this.aiThinking || this.phase === 'scoring' || this.game.moveNumber === 0;
     ($('btnPass') as HTMLButtonElement).disabled = !humanTurn;
+    ($('btnResign') as HTMLButtonElement).disabled = this.over || this.phase === 'scoring' || this.game.moveNumber === 0;
 
     this.renderer.state.canPlay = humanTurn;
     this.renderer.state.scoring = this.phase === 'scoring';
@@ -528,6 +530,43 @@ class App {
     void this.maybeAI();
   }
 
+  /* ================= 认输 ================= */
+
+  /** 当前认输方：双人模式为行棋方，人机模式为人类。 */
+  private resignLoserIsBlack(): boolean {
+    return this.mode === 'pvp' ? this.game.playerToMove === 'black' : this.humanColor === BLACK;
+  }
+
+  requestResign(): void {
+    if (this.over || this.phase === 'scoring' || this.game.moveNumber === 0) return;
+    const loser = this.resignLoserIsBlack() ? '黑方' : '白方';
+    this.openDialog(`
+      <div class="dlg-icon">${ICO.flag}</div>
+      <div class="dlg-title">确认认输？</div>
+      <div class="dlg-body">${loser}中盘告负，本局将计入战绩。</div>
+      <div class="dlg-btns">
+        <button class="btn-pill text" data-cmd="ok">继续比赛</button>
+        <button class="btn-pill primary" data-cmd="resign-confirm">确认认输</button>
+      </div>`);
+  }
+
+  confirmResign(): void {
+    if (this.over || this.phase === 'scoring') return;
+    this.closeDialog();
+    this.ai.cancel();
+    this.aiToken++;
+    this.aiThinking = false;
+    this.over = true;
+    this.phase = 'play';
+    this.resultWinner = this.resignLoserIsBlack() ? 'white' : 'black';
+    this.resultText = this.resultWinner === 'black' ? '黑中盘胜' : '白中盘胜';
+    this.recordResult(this.resultWinner);
+    this.updateHUD();
+    this.saveSession();
+    this.renderer.scheduleDraw();
+    setTimeout(() => this.showGameOver(), 400);
+  }
+
   /* ================= 存档 ================= */
 
   saveSession(): void {
@@ -708,7 +747,7 @@ class App {
         计分阶段可<b>点击棋子标记/恢复死子</b>（人机对局中 AI 会先按形势判断自动标记），确认后结算。<br>
         <b>人机模式</b>：可选 9 / 13 / 19 路棋盘，<b>我执黑先行 / 我执白后行</b>，难度分 <b>简单（20级）/ 中等（8级）/ 困难（1段）/ 专家（3段）</b> 四档。AI 由 KataGo 驱动，会像真实段位的棋手一样思考与停一手。<br>
         <b>双人模式</b>：两位玩家在同一设备上轮流落子。<br>
-        键盘：<b>↑↓←→ / WASD</b> 移动光标，<b>空格 / 回车</b> 落子，<b>Z</b> 悔棋，<b>P</b> 停一手，<b>R</b> 重开。
+        键盘：<b>↑↓←→ / WASD</b> 移动光标，<b>空格 / 回车</b> 落子，<b>Z</b> 悔棋，<b>P</b> 停一手，<b>R</b> 重开。认输请点「认输」，判负并结束本局。
       </div>
       <div class="dlg-btns"><button class="btn-pill primary" data-cmd="ok">知道了</button></div>`);
   }
@@ -935,6 +974,7 @@ const ICO = {
   trophy: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 16.5V21M7 4h10v4.5a5 5 0 0 1-10 0z"/><path d="M7 5.5H4.6a2 2 0 0 0 2 3.7H7M17 5.5h2.4a2 2 0 0 1-2 3.7H17"/></svg>',
   trash: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.5h15M9.5 6V4.5h5V6M6.5 6.5l.9 13.5h9.2l.9-13.5M10 10.5v6M14 10.5v6"/></svg>',
   crown: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17.5 3 8l5 3.5L12 5l4 6.5L21 8l-1 9.5z"/><path d="M5 21h14"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h13l-2.5 4L18 12H5"/></svg>',
   handshake: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="9" r="3.2"/><circle cx="15.5" cy="9" r="3.2"/><path d="M3.5 20c.6-3 2.6-4.5 5-4.5s4.4 1.5 5 4.5M10.5 20c.6-3 2.6-4.5 5-4.5s4.4 1.5 5 4.5"/></svg>',
   chip: '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="3"/><rect x="9.2" y="9.2" width="5.6" height="5.6" rx="1.2"/><path d="M9 2.8v2.2M15 2.8v2.2M9 19v2.2M15 19v2.2M2.8 9h2.2M2.8 15h2.2M19 9h2.2M19 15h2.2"/></svg>',
 };
