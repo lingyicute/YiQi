@@ -608,10 +608,16 @@ class App {
   private toastTimer: number | null = null;
 
   dialogOpen = false;
+  private dialogCloseTimer: number | null = null;
 
   /* ================= 对话框 ================= */
 
   openDialog(html: string): void {
+    if (this.dialogCloseTimer !== null) {
+      window.clearTimeout(this.dialogCloseTimer);
+      this.dialogCloseTimer = null;
+      $('scrim').classList.remove('closing');
+    }
     $('dialog').innerHTML = html;
     $('scrim').hidden = false;
     this.dialogOpen = true;
@@ -620,9 +626,17 @@ class App {
   }
 
   closeDialog(): void {
-    $('scrim').hidden = true;
+    const scrim = $('scrim');
+    if (scrim.hidden || this.dialogCloseTimer !== null) return;
     this.dialogOpen = false;
     $('btnPalette').classList.remove('active');
+    // 播放收起动画后再隐藏（与 up/fade 进场对称）
+    scrim.classList.add('closing');
+    this.dialogCloseTimer = window.setTimeout(() => {
+      this.dialogCloseTimer = null;
+      scrim.classList.remove('closing');
+      scrim.hidden = true;
+    }, 170);
   }
 
   /* ================= 终局 / 记录 / 规则 对话框 ================= */
