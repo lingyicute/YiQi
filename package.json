@@ -13,7 +13,8 @@
     "test": "vitest run",
     "test:rules": "vitest run tests/rules.test.ts",
     "test:engine": "ENGINE_TESTS=1 vitest run tests/engine.test.ts",
-    "copy:tfjs-wasm": "node scripts/copy-tfjs-wasm.mjs"
+    "copy:tfjs-wasm": "node scripts/copy-tfjs-wasm.mjs",
+    "subset:font": "python3 scripts/subset_font.py"
   },
   "dependencies": {
     "@tensorflow/tfjs-backend-wasm": "^4.22.0",
