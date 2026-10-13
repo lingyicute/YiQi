@@ -45,7 +45,10 @@ await page.waitForTimeout(1200);
 const dlgVisible = await page.evaluate(() => !document.getElementById('scrim').hidden);
 console.log(dlgVisible ? '  · 下载弹窗已自动弹出（无模型缓存）' : '  · 无下载弹窗（AI 已就绪或缓存命中）');
 if (dlgVisible) {
-  ok(await page.locator('#dialog .dlg-title').textContent().then((t) => t?.includes('AI 模型')), '下载弹窗标题');
+  const hasWgNotice = await page.evaluate(() => !!document.querySelector('#dialog [data-cmd="wg-continue"]'));
+  ok(await page.locator('#dialog .dlg-title').textContent()
+    .then((t) => (hasWgNotice ? t?.includes('WebGPU') : t?.includes('AI 模型'))),
+    hasWgNotice ? '首访弹 WebGPU 提示弹窗' : '下载弹窗标题');
   // 跳过下载 → 自动切双人 + AI chips 置灰
   await page.locator('#dialog [data-cmd="skipdl"]').click();
   await page.waitForTimeout(200);
@@ -125,6 +128,12 @@ await page.keyboard.press('Escape');
 await page.locator('#btnMenu').click();
 await page.locator('.menu-item[data-act="records"]').click();
 ok(await page.locator('#dialog .dlg-title').textContent().then((t) => t?.includes('战绩')), '战绩对话框');
+{
+  const body = await page.locator('.dlg-body').textContent();
+  const recBody = await page.locator('#dialog .dlg-body').textContent();
+  ok(!!recBody && !recBody.includes('你执黑') && !recBody.includes('你执白'), '战绩不再按执黑/执白分栏');
+}
+await page.locator('#dialog [data-cmd="ok"]').click();
 await page.keyboard.press('Escape');
 
 /* 7. 配色 */

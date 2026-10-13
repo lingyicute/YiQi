@@ -4,6 +4,7 @@
 import { App } from './ui/app';
 import { BLACK } from './ui/board';
 import { playStoneSound } from './ui/sounds';
+import { emptyRecords } from './ui/settings';
 
 const app = new App();
 (window as unknown as { yiqi: App }).yiqi = app;
@@ -73,7 +74,7 @@ $('dialog').addEventListener('click', (e) => {
   if (cmd === 'again') { app.closeDialog(); app.newGame(); app.toast('已开始新对局'); }
   else if (cmd === 'resign-confirm') { app.confirmResign(); }
   else if (cmd === 'clear') {
-    app.records = { b: {}, w: {} };
+    app.records = emptyRecords();
     app.saveRecords();
     app.newGame();
     app.closeDialog();
@@ -82,6 +83,8 @@ $('dialog').addEventListener('click', (e) => {
     void app.startDownload();
   } else if (cmd === 'skipdl') {
     app.skipDownload();
+  } else if (cmd === 'wg-continue') {
+    app.showDownloadDialog();
   } else app.closeDialog();
 });
 

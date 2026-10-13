@@ -26,9 +26,15 @@ console.log('AI E2E @', BASE);
 await page.goto(BASE, { waitUntil: 'networkidle' });
 await page.waitForTimeout(1200);
 
-/* 1. 下载弹窗 → 开始下载 */
+/* 1. 下载弹窗 → 开始下载（无 WebGPU 环境会先弹显式提示） */
 const dlgVisible = await page.evaluate(() => !document.getElementById('scrim').hidden);
 ok(dlgVisible, '首次访问弹出模型下载弹窗');
+if (await page.evaluate(() => !!document.querySelector('#dialog [data-cmd="wg-continue"]'))) {
+  const wgTitle = await page.locator('.dlg-title').textContent();
+  ok(!!wgTitle && wgTitle.includes('WebGPU'), `无 WebGPU 提示弹窗（${wgTitle}）`);
+  await page.locator('#dialog [data-cmd="wg-continue"]').click();
+  await page.waitForTimeout(250);
+}
 await page.locator('#dialog [data-cmd="startdl"]').click();
 await page.waitForTimeout(600);
 const progVisible = await page.evaluate(() => document.getElementById('dlProgress').style.display === 'block');

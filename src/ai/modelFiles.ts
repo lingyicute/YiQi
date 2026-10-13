@@ -216,3 +216,25 @@ export async function preferredBackend(): Promise<KataGoBackendPreference> {
     return 'wasm';
   }
 }
+
+/** 浏览器是否支持 WebAssembly（含微型模块编译探测）。不支持的浏览器无法运行 tfjs WASM 后端。每次调用都实测。 */
+export async function wasmSupported(): Promise<boolean> {
+  try {
+    if (typeof WebAssembly !== 'object') return false;
+    // 最小合法 wasm 模块（仅 magic+version 头）
+    await WebAssembly.instantiate(new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 浏览器是否提供可用的 WebGPU 适配器（仅影响速度，不影响可用性）。每次调用都实测。 */
+export async function webgpuAvailable(): Promise<boolean> {
+  try {
+    const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
+    return gpu ? !!(await gpu.requestAdapter()) : false;
+  } catch {
+    return false;
+  }
+}

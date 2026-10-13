@@ -8,7 +8,7 @@ import { GoGame, IllegalMoveError, KOMI, type ScoreSummary } from '../core/rules
 import { AiPlayer, DIFFICULTY_LABEL, DIFFICULTY_RANK_LABEL, type Difficulty } from '../ai/aiPlayer';
 import { BoardRenderer, BLACK, WHITE } from './board';
 import { playStoneSound, playWinSound, triggerHaptic } from './sounds';
-import { LS, ACCENTS, emptyRecords, type Records, type SessionSave, type Settings, DEFAULT_SETTINGS } from './settings';
+import { LS, ACCENTS, emptyRecords, migrateRecords, type Records, type SessionSave, type Settings, DEFAULT_SETTINGS } from './settings';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -37,7 +37,7 @@ type Phase = 'play' | 'scoring';
 
 class App {
   settings: Settings = { ...DEFAULT_SETTINGS, ...LS.get<Partial<Settings>>('settings', {}) };
-  records: Records = LS.get<Records>('records', emptyRecords());
+  records: Records = migrateRecords(LS.get<unknown>('records', null));
   game: GoGame;
   renderer: BoardRenderer;
 
@@ -143,10 +143,11 @@ class App {
 
   updateAILock(): void {
     const locked = !this.ai.ready;
+    const lockTip = this.wasmUnsupported ? '当前浏览器不支持 WASM，无法运行 AI' : '需要先下载 AI 模型';
     document.querySelectorAll('#modes .chip[data-mode^="ai-"]').forEach((c) => {
       const el = c as HTMLElement;
       el.classList.toggle('locked', locked);
-      el.title = locked ? '需要先下载 AI 模型' : '';
+      el.title = locked ? lockTip : '';
     });
   }
 
@@ -484,12 +485,11 @@ class App {
   private recordResult(winner: 'black' | 'white' | 'tie'): void {
     if (this.mode === 'pvp' || this.recorded) return;
     const diff = MODE_TO_DIFF[this.mode] || 'hard';
-    const bucket = this.humanColor === BLACK ? this.records.b : this.records.w;
-    const r = bucket[diff] || { w: 0, l: 0 };
+    const r = this.records[diff] || { w: 0, l: 0 };
     const humanWon = (winner === 'black' ? BLACK : WHITE) === this.humanColor;
     if (humanWon) r.w++;
     else r.l++;
-    bucket[diff] = r;
+    this.records[diff] = r;
     this.recorded = true;
     LS.set('records', this.records);
   }
@@ -502,8 +502,7 @@ class App {
       // 撤销终局结果
       if (this.mode !== 'pvp' && this.recorded) {
         const diff = MODE_TO_DIFF[this.mode] || 'hard';
-        const bucket = this.humanColor === BLACK ? this.records.b : this.records.w;
-        const r = bucket[diff];
+        const r = this.records[diff];
         if (r) {
           const humanWon = (this.resultWinner === 'black' ? BLACK : WHITE) === this.humanColor;
           if (humanWon) r.w = Math.max(0, r.w - 1);
@@ -630,7 +629,21 @@ class App {
 
   /* ================= 下载与 AI 状态 ================= */
 
+  /** 浏览器不支持 WebAssembly 时置真：不弹下载、AI 入口给出明确解释。 */
+  wasmUnsupported = false;
+  /** 浏览器无可用 WebGPU 时置真：下载前先弹一次显式提示（仅影响速度）。 */
+  webgpuMissing = false;
+  private webgpuNoticeShown = false;
+
   async bootstrapAI(): Promise<void> {
+    const { wasmSupported, webgpuAvailable } = await import('../ai/modelFiles');
+    if (!(await wasmSupported())) {
+      this.wasmUnsupported = true;
+      this.aiDownloadDismissed = true;
+      this.updateAILock();
+      return;
+    }
+    this.webgpuMissing = !(await webgpuAvailable());
     const cached = await AiPlayer.modelsCached();
     if (cached) {
       try {
@@ -702,12 +715,11 @@ class App {
       body = `${this.resultText || ''}<br>${meta}`;
     } else if (this.resultWinner !== 'tie' && (this.resultWinner === 'black' ? BLACK : WHITE) === this.humanColor) {
       const diff = MODE_TO_DIFF[this.mode] || 'hard';
-      const bucket = this.humanColor === BLACK ? this.records.b : this.records.w;
-      const r = bucket[diff] || { w: 0, l: 0 };
+      const r = this.records[diff] || { w: 0, l: 0 };
       const sideTxt = this.humanColor === BLACK ? '黑' : '白';
       icon = ICO.crown;
-      title = '你赢了！🎉';
-      body = `恭喜！你执${sideTxt}在「${DIFFICULTY_LABEL[diff]}」难度战胜了 AI（${DIFFICULTY_RANK_LABEL[diff]}）。<br>${this.resultText} · ${meta}<br>本难度执${sideTxt}战绩 ${r.w} 胜 ${r.l} 负`;
+      title = '你赢了！';
+      body = `恭喜！你执${sideTxt}在「${DIFFICULTY_LABEL[diff]}」难度战胜了 AI（${DIFFICULTY_RANK_LABEL[diff]}）。<br>${this.resultText} · ${meta}<br>本难度战绩 ${r.w} 胜 ${r.l} 负`;
     } else if (this.resultWinner === 'tie') {
       icon = ICO.handshake;
       title = '和棋!';
@@ -747,7 +759,7 @@ class App {
       <div class="dlg-body">
         黑白轮流落子，<b>黑棋先行</b>，棋子落在交叉点上。棋子的「气」是紧邻的空点；<b>无气（被围死）的棋子被提离棋盘</b>。<br>
         <b>禁全局同形</b>：不得落子使局面回到对方下完最后一手前的形状（打劫需先在他处落子寻劫）。<b>禁自杀</b>：落子后自身无气且未提对方子，为禁着点。<br>
-        <b>终局</b>：双方连续<b>停一手</b>（虚着）即进入计分。死子从棋盘上拿掉后，用<b>数子法</b>计分：你的活棋子数 + 围住的空点，<b>黑贴 7.5 目</b>（3¾ 子）后多者胜。<br>
+        <b>终局</b>：双方连续<b>停一手</b>（虚着）即进入计分。死子从棋盘上拿掉后，用<b>数子法</b>计分：你的活棋子数 + 围住的空点，<b>黑贴 7.5 目</b>（3 又 3/4 子）后多者胜。<br>
         计分阶段可<b>点击棋子标记/恢复死子</b>（人机对局中 AI 会先按形势判断自动标记），确认后结算。<br>
         <b>人机模式</b>：可选 9 / 13 / 19 路棋盘，<b>我执黑先行 / 我执白后行</b>，难度分 <b>简单（20级）/ 中等（8级）/ 困难（1段）/ 专家（3段）</b> 四档。AI 由 KataGo 驱动，会像真实段位的棋手一样思考与停一手。<br>
         <b>双人模式</b>：两位玩家在同一设备上轮流落子。<br>
@@ -764,17 +776,13 @@ class App {
         const rate = t ? Math.round((r.w / t) * 100) : 0;
         return `<div class="rec-row"><span>${DIFFICULTY_LABEL[k]}</span><span>${r.w} 胜 / ${r.l} 负</span><span class="rate">${rate}%</span></div>`;
       }).join('');
-    const sub = (txt: string) => `<div class="rec-head" style="margin-top:12px;border:none;padding-bottom:2px"><span>${txt}</span><span></span><span></span></div>`;
     this.openDialog(`
       <div class="dlg-icon">${ICO.trophy}</div>
       <div class="dlg-title">战绩统计</div>
       <div class="dlg-body">
         <div class="rec-head"><span>人机难度</span><span>战绩</span><span style="text-align:right">胜率</span></div>
-        ${sub('你执黑')}
-        ${rowsOf(this.records.b)}
-        ${sub('你执白')}
-        ${rowsOf(this.records.w)}
-        <div style="margin-top:10px;font-size:12.5px">仅统计人机对战（按你执子颜色分别记录），双人模式不计入。</div>
+        ${rowsOf(this.records)}
+        <div style="margin-top:10px;font-size:12.5px">仅统计人机对战（执黑执白合并计数），双人模式不计入。</div>
       </div>
       <div class="dlg-btns"><button class="btn-pill primary" data-cmd="ok">知道了</button></div>`);
   }
@@ -804,9 +812,37 @@ class App {
 
   /* ================= 模型下载对话框 ================= */
 
-  showDownloadDialog(): void {
+  async showDownloadDialog(): Promise<void> {
     if (this.ai.ready) {
       this.toast('AI 模型已就绪');
+      return;
+    }
+    // 每次打开都重新实测 WASM/WebGPU 能力（不沿用启动时的缓存结论）
+    {
+      const { wasmSupported, webgpuAvailable } = await import('../ai/modelFiles');
+      this.wasmUnsupported = !(await wasmSupported());
+      this.webgpuMissing = !(await webgpuAvailable());
+    }
+    if (this.wasmUnsupported) {
+      this.openDialog(`
+      <div class="dlg-icon">${ICO.chip}</div>
+      <div class="dlg-title">无法启用 AI</div>
+      <div class="dlg-body">当前浏览器不支持 <b>WebAssembly</b>，无法运行 KataGo 模型。<br>双人对战不受影响；换用近年版本的 Chrome / Edge / Firefox / Safari 即可启用人机对战。</div>
+      <div class="dlg-btns">
+        <button class="btn-pill primary" data-cmd="ok">知道了</button>
+      </div>`);
+      return;
+    }
+    if (this.webgpuMissing && !this.webgpuNoticeShown) {
+      this.webgpuNoticeShown = true;
+      this.openDialog(`
+      <div class="dlg-icon"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13.5H11L9.5 22 19 10h-6.5z"/></svg></div>
+      <div class="dlg-title">未检测到 WebGPU</div>
+      <div class="dlg-body">当前浏览器没有可用的 WebGPU，AI 将以 <b>WASM 模式</b>运行：完全可用，但每手思考约需数秒（WebGPU 下更快）。<br><br>模型下载约 <b>103 MB</b>，是否继续？</div>
+      <div class="dlg-btns">
+        <button class="btn-pill text" data-cmd="skipdl">跳过</button>
+        <button class="btn-pill primary" data-cmd="wg-continue">继续下载</button>
+      </div>`);
       return;
     }
     this.openDialog(`

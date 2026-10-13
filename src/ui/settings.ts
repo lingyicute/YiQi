@@ -37,12 +37,36 @@ export const DEFAULT_SETTINGS: Settings = {
   coords: true,
 };
 
-export type Records = {
-  b: Record<string, { w: number; l: number }>;
-  w: Record<string, { w: number; l: number }>;
-};
+export type WinLoss = { w: number; l: number };
+export type Records = Record<string, WinLoss>;
 
-export const emptyRecords = (): Records => ({ b: {}, w: {} });
+export const emptyRecords = (): Records => ({});
+
+/**
+ * 兼容旧版按执黑/执白分桶（{b:{...},w:{...}}）的存储：
+ * 迁移为按难度合并的单一计数表。
+ */
+export function migrateRecords(raw: unknown): Records {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Records = {};
+  const add = (k: string, v: unknown) => {
+    if (!v || typeof v !== 'object') return;
+    const { w, l } = v as { w?: unknown; l?: unknown };
+    if (typeof w !== 'number' || typeof l !== 'number') return;
+    const r = out[k] || (out[k] = { w: 0, l: 0 });
+    r.w += w; r.l += l;
+  };
+  const src = raw as { b?: unknown; w?: unknown };
+  if (src.b || src.w) {
+    for (const part of [src.b, src.w]) {
+      if (!part || typeof part !== 'object') continue;
+      for (const [k, v] of Object.entries(part as Record<string, unknown>)) add(k, v);
+    }
+    return out;
+  }
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) add(k, v);
+  return out;
+}
 
 export const ACCENTS: Record<string, string> = {
   purple: '#a78bfa', blue: '#82aaff', teal: '#5edfd0', green: '#6fdc8c',
