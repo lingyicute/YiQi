@@ -46,11 +46,14 @@ const dlgVisible = await page.evaluate(() => !document.getElementById('scrim').h
 console.log(dlgVisible ? '  · 下载弹窗已自动弹出（无模型缓存）' : '  · 无下载弹窗（AI 已就绪或缓存命中）');
 if (dlgVisible) {
   ok(await page.locator('#dialog .dlg-title').textContent().then((t) => t?.includes('AI 模型')), '下载弹窗标题');
-  // 跳过下载 → AI chips 置灰
+  // 跳过下载 → 自动切双人 + AI chips 置灰
   await page.locator('#dialog [data-cmd="skipdl"]').click();
   await page.waitForTimeout(200);
   const locked = await page.locator('#modes .chip[data-mode="ai-easy"].locked').count();
   ok(locked === 1, '跳过后人机 chips 置灰');
+  ok(await page.evaluate(() => window.yiqi.mode) === 'pvp', '跳过后自动切换到双人模式');
+  ok(await page.locator('#modes .chip[data-mode="pvp"]').getAttribute('class').then((c) => c?.includes('sel')), '跳过后双人 chip 选中');
+  ok(await page.evaluate(() => document.getElementById('sides').style.display === 'none'), '跳过后执子选择区隐藏');
 }
 
 /* 4. 双人对战：落子、提子显示、停一手、悔棋 */

@@ -95,13 +95,7 @@ $('modes').addEventListener('click', (e) => {
     app.showDownloadDialog();
     return;
   }
-  app.mode = mode;
-  app.settings.mode = mode;
-  app.saveSettings();
-  document.querySelectorAll('#modes .chip').forEach((c) => c.classList.toggle('sel', (c as HTMLElement).dataset.mode === mode));
-  $('sides').style.display = mode === 'pvp' ? 'none' : 'flex';
-  app.newGame();
-  app.toast(mode === 'pvp' ? '双人对战开始' : '人机对战 · ' + $('modes').querySelector(`[data-mode="${mode}"]`)?.textContent?.trim());
+  app.setMode(mode);
 });
 
 $('sizes').addEventListener('click', (e) => {

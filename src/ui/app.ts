@@ -866,8 +866,21 @@ class App {
   skipDownload(): void {
     this.aiDownloadDismissed = true;
     this.closeDialog();
+    // 跳过后 AI 不可用，留在人机模式会无法应答——直接切到双人对战
+    if (this.mode.startsWith('ai-')) this.setMode('pvp', { toast: false });
     this.toast('已跳过：双人对战可用，AI 模型可在菜单中随时下载');
     this.updateAILock();
+  }
+
+  /** 切换模式（同步 chips/执子区 UI、开新对局）。 */
+  setMode(mode: string, opts: { toast?: boolean } = {}): void {
+    this.mode = mode;
+    this.settings.mode = mode;
+    this.saveSettings();
+    document.querySelectorAll('#modes .chip').forEach((c) => c.classList.toggle('sel', (c as HTMLElement).dataset.mode === mode));
+    $('sides').style.display = mode === 'pvp' ? 'none' : 'flex';
+    this.newGame();
+    if (opts.toast !== false) this.toast(mode === 'pvp' ? '双人对战开始' : '人机对战 · ' + $('modes').querySelector(`[data-mode="${mode}"]`)?.textContent?.trim());
   }
 
   /* ================= SGF 导出 ================= */
