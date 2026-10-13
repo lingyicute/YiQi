@@ -540,10 +540,14 @@ class App {
   requestResign(): void {
     if (this.over || this.phase === 'scoring' || this.game.moveNumber === 0) return;
     const loser = this.resignLoserIsBlack() ? '黑方' : '白方';
+    // 双人模式不计入战绩（recordResult 对 pvp 直接跳过），文案须与之一致
+    const body = this.mode === 'pvp'
+      ? `${loser}中盘告负，对局立即结束。`
+      : '你中盘告负，本局将计入战绩。';
     this.openDialog(`
       <div class="dlg-icon">${ICO.flag}</div>
       <div class="dlg-title">确认认输？</div>
-      <div class="dlg-body">${loser}中盘告负，本局将计入战绩。</div>
+      <div class="dlg-body">${body}</div>
       <div class="dlg-btns">
         <button class="btn-pill text" data-cmd="ok">继续比赛</button>
         <button class="btn-pill primary" data-cmd="resign-confirm">确认认输</button>

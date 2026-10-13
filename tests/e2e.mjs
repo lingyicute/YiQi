@@ -169,6 +169,8 @@ await page.waitForTimeout(200);
 await page.locator('#btnResign').click();
 await page.waitForTimeout(150);
 ok(await page.evaluate(() => !document.getElementById('scrim').hidden), '认输确认弹窗弹出');
+const resignBody = await page.locator('.dlg-body').textContent();
+ok(!!resignBody && !resignBody.includes('战绩'), `双人认输文案不提战绩（${resignBody}）`);
 await page.locator('#dialog [data-cmd="ok"]').click();
 await page.waitForTimeout(250);
 ok(await page.evaluate(() => !window.yiqi.over && document.getElementById('scrim').hidden), '「继续比赛」取消认输');
