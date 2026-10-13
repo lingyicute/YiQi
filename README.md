@@ -72,6 +72,8 @@ npm run build            # 产物在 dist/
 npm run preview          # 本地预览 dist/（带 COOP/COEP 头）
 ```
 
+字体：Nebulove 子集以 base64 内嵌于 `src/fonts/nebulove-subset.css`（随 CSS 打包，无网络请求，方式同 YiRenju）。**修改界面文案后**请 `pip install fonttools brotli` 并重跑 `npm run subset:font`，否则新增字符会回退到系统字体。
+
 <br>
 
 ## 🎮 操作

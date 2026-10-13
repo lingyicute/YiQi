@@ -100,7 +100,7 @@ export const RULES: Record<GameRules, RulesDefinition> = {
   aga: {
     id: 'aga',
     label: 'AGA',
-    summary: 'Area scoring, situational superko, White gets N−1 for handicap.',
+    summary: 'Area scoring, situational superko, White gets N-1 for handicap.',
     scoring: 'area',
     ko: 'situational',
     tax: 'none',
