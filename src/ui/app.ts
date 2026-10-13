@@ -730,12 +730,12 @@ class App {
   showWhatIsGo(): void {
     this.openDialog(`
       <div class="dlg-icon">${ICO.help}</div>
-      <div class="dlg-title">什么是围棋？</div>
+      <div class="dlg-title">什么是围棋?</div>
       <div class="dlg-body">
         <b>围棋（Go）</b>起源于中国，距今已有四千余年，是世界上最古老的棋类游戏，也是唯一能与之相称的策略艺术。<br><br>
         双方在棋盘交叉点上交替落子，目标是<b>围出更多的地盘</b>：棋子围住对方无气的棋子即可提掉它，最终以围住的空点与存活的棋子合计多者获胜。<br><br>
         古人把它列入「琴棋书画」四艺。棋盘之上，一子一世界——十九路纵横三百六十一点，变化之多超越宇宙中原子的总数。<br><br>
-        YiQi 采用<b>中国大陆规则</b>（数子法，黑贴 7.5 目），AI 由 <b>KataGo</b> 驱动，可模仿从 15 级到职业 9 段的人类棋手下棋。
+        YiQi 采用<b>中国大陆规则</b>（数子法，黑贴 7.5 目），AI 由 <b>KataGo</b> 驱动，可模仿从 20 级到职业 9 段的人类棋手下棋。
       </div>
       <div class="dlg-btns"><button class="btn-pill primary" data-cmd="ok">知道了</button></div>`);
   }
