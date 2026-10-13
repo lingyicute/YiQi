@@ -81,6 +81,10 @@ await page.locator('#btnUndo').click();
 await page.waitForTimeout(100);
 moveLabel = await page.locator('#moveLabel').textContent();
 ok(moveLabel?.includes('第 2 手'), `悔棋回退一手（${moveLabel}）`);
+// 回归：GoGame.undo 内部重建引擎并更换 board 数组引用，渲染器必须重新同步，
+// 否则棋子残留在画面上而逻辑认为已撤销（幽灵棋子，无法继续落子）
+ok(await page.evaluate(() => window.yiqi.renderer.state.board === window.yiqi.game.board), '悔棋后渲染器与逻辑棋盘同一引用');
+ok(await page.evaluate(() => window.yiqi.renderer.state.board.flat().filter((v) => v !== 0).length) === 1, '悔棋后画面棋子数与逻辑一致');
 
 // 停一手（白）
 await page.locator('#btnPass').click();

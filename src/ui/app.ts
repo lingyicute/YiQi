@@ -198,6 +198,12 @@ class App {
   resultText: string | null = null;
   resultWinner: 'black' | 'white' | 'tie' = 'tie';
 
+  /** 渲染器棋盘与逻辑棋盘重新指向：GoGame 的 undo/resetToMoves 会整体重建引擎并更换 board 数组引用。 */
+  private syncBoard(): void {
+    this.renderer.state.board = this.game.board;
+    this.renderer.state.size = this.game.size;
+  }
+
   private snapshotBoards(): void {
     // 重放着法序列，得到当前局面的前一/前二手棋盘（NN 特征层需要）
     const replay = new GoGame(this.game.size);
@@ -224,6 +230,8 @@ class App {
       else this.game.place(x, y);
     } catch (err) {
       if (err instanceof IllegalMoveError) {
+        // 超级劫拒绝时 GoGame 内部会重建引擎，board 数组引用已更换，必须重新同步渲染器
+        this.syncBoard();
         this.toast(illegalMessage(err.code));
         return;
       }
@@ -510,6 +518,7 @@ class App {
     this.ai.cancel();
     this.aiToken++;
     this.game.undo(n);
+    this.syncBoard();
     this.snapshotBoards();
     this.aiThinking = false;
     this.renderer.state.lastMove = null;
