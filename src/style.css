@@ -60,7 +60,9 @@ body{
   transition:background .3s,color .3s;
 }
 button{font-family:inherit;border:none;background:none;color:inherit;cursor:pointer}
-button:focus-visible{outline:2.5px solid var(--primary);outline-offset:2px;border-radius:8px}
+button:focus-visible{outline:2.5px solid var(--primary);outline-offset:2px}
+/* 胶囊类控件：焦点环用 box-shadow 绘制，任何浏览器都跟随胶囊圆角 */
+.btn-pill:focus-visible,.btn-action:focus-visible,.chip:focus-visible{outline:none;box-shadow:0 0 0 3px var(--primary)}
 svg{display:block}
 
 /* ============ 顶栏 ============ */
