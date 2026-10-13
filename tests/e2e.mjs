@@ -152,7 +152,38 @@ const bw2 = await page.locator('#board').boundingBox();
 ok(!!bw2 && bw2.width > 400, `宽屏两栏布局（棋盘 ${Math.round(bw2?.width || 0)}px）`);
 await page.screenshot({ path: path.resolve(__dirname, '../e2e-screenshots/desktop.png') });
 
-/* 10. JS 错误 */
+/* 10. 认输（新对局：黑落一子后白认输） */
+await page.setViewportSize({ width: 1280, height: 900 });
+await page.waitForTimeout(300);
+await page.locator('#btnRestart').click();
+await page.waitForTimeout(300);
+ok(await page.locator('#capB').isVisible() && await page.locator('#capW').isVisible(), '提子卡片显示');
+ok(await page.locator('#capB').textContent() === '0' && await page.locator('#capW').textContent() === '0', '提子初始 0 · 0');
+const rb = await page.locator('#board').boundingBox();
+const cell9 = (gx, gy) => {
+  const m = rb.width * 0.062, g = (rb.width - 2 * m) / 8;
+  return { x: rb.x + m + gx * g, y: rb.y + m + gy * g };
+};
+await page.mouse.click(cell9(3, 3).x, cell9(3, 3).y);
+await page.waitForTimeout(200);
+await page.locator('#btnResign').click();
+await page.waitForTimeout(150);
+ok(await page.evaluate(() => !document.getElementById('scrim').hidden), '认输确认弹窗弹出');
+await page.locator('#dialog [data-cmd="ok"]').click();
+await page.waitForTimeout(250);
+ok(await page.evaluate(() => !window.yiqi.over && document.getElementById('scrim').hidden), '「继续比赛」取消认输');
+await page.locator('#btnResign').click();
+await page.waitForTimeout(150);
+await page.locator('#dialog [data-cmd="resign-confirm"]').click();
+await page.waitForTimeout(900);
+const resignTitle = await page.locator('.dlg-title').textContent();
+ok(!!resignTitle && resignTitle.includes('获胜'), `认输后终局弹窗（${resignTitle}）`);
+ok(await page.evaluate(() => window.yiqi.resultText) === '黑中盘胜', '认输结果为中盘胜');
+await page.locator('#dialog [data-cmd="again"]').click();
+await page.waitForTimeout(250);
+ok(await page.evaluate(() => !window.yiqi.over && window.yiqi.game.moveNumber === 0), '再来一局重置认输');
+
+/* 11. JS 错误 */
 const realErrors = errors.filter((e) => !e.includes('favicon') && !e.includes('Download the React DevTools'));
 ok(realErrors.length === 0, `无页面错误（${realErrors.length}）`);
 if (realErrors.length) console.error(realErrors.slice(0, 5));

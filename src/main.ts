@@ -71,6 +71,7 @@ $('dialog').addEventListener('click', (e) => {
   if (!btn) return;
   const cmd = (btn as HTMLElement).dataset.cmd;
   if (cmd === 'again') { app.closeDialog(); app.newGame(); app.toast('已开始新对局'); }
+  else if (cmd === 'resign-confirm') { app.confirmResign(); }
   else if (cmd === 'clear') {
     app.records = { b: {}, w: {} };
     app.saveRecords();
@@ -133,6 +134,7 @@ $('btnPass').addEventListener('click', () => {
   const ok = app.humanPlace(-1, -1);
   if (ok) app.toast('停一手' + (app.phase === 'scoring' ? '，双方连续停一手，进入计分' : ''));
 });
+$('btnResign').addEventListener('click', () => app.requestResign());
 $('btnRestart').addEventListener('click', () => { app.newGame(); app.toast('已开始新对局'); });
 $('btnResume').addEventListener('click', () => {
   app.resumeFromScoring();
