@@ -15,9 +15,9 @@ var d=document.documentElement;
 if(s.theme)d.dataset.theme=s.theme;else if(!window.matchMedia('(prefers-color-scheme: dark)').matches)d.dataset.theme='light';
 if(s.accent)d.dataset.accent=s.accent;}catch(e){}})();
 </script>
-  <script type="module" crossorigin src="/assets/index-B1krH6be.js"></script>
+  <script type="module" crossorigin src="/assets/index-Dw2t2TM3.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/rules-B20mbfdK.js">
-  <link rel="stylesheet" crossorigin href="/assets/index-DYdQmh88.css">
+  <link rel="stylesheet" crossorigin href="/assets/index-BRwM2T7D.css">
 </head>
 <body>
 
@@ -84,24 +84,35 @@ if(s.accent)d.dataset.accent=s.accent;}catch(e){}})();
       <span class="subtitle" id="subtitle">人机对战 · 困难</span>
     </div>
 
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-label" id="moveLabel">第 1 手</div>
-        <div class="stat-value" id="turnValue"><span class="stone-dot black"></span><span>你的回合</span></div>
+    <div class="stats-wrap">
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label" id="moveLabel">第 1 手</div>
+          <div class="stat-value" id="turnValue"><span class="stone-dot black"></span><span>你的回合</span></div>
+        </div>
+        <div class="stat-card accent">
+          <div class="stat-label">用时</div>
+          <div class="stat-value" id="timer">00:00</div>
+        </div>
+        <button class="btn-round btn-tonal" id="btnUndo" title="悔棋 (Z)" disabled>
+          <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 5 4 9.5 8.5 14"/><path d="M4 9.5h9.5a6 6 0 0 1 0 12h-3"/></svg>
+        </button>
+        <button class="btn-round btn-primary" id="btnRestart" title="重新开始 (R)">
+          <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3.5v4h-4"/></svg>
+        </button>
       </div>
-      <div class="stat-card accent">
-        <div class="stat-label">用时</div>
-        <div class="stat-value" id="timer">00:00</div>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-label">提子</div>
+          <div class="stat-value caps-value">
+            <span class="stone-dot black"></span><span id="capB">0</span>
+            <span class="caps-sep">·</span>
+            <span class="stone-dot white"></span><span id="capW">0</span>
+          </div>
+        </div>
+        <button class="btn-action" id="btnPass" title="停一手 (P)">停一手</button>
+        <button class="btn-action" id="btnResign" title="认输">认输</button>
       </div>
-      <button class="btn-round btn-tonal" id="btnUndo" title="悔棋 (Z)" disabled>
-        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 5 4 9.5 8.5 14"/><path d="M4 9.5h9.5a6 6 0 0 1 0 12h-3"/></svg>
-      </button>
-      <button class="btn-round btn-tonal" id="btnPass" title="停一手 (P)">
-        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 5.5v13"/><path d="M19 12 9.5 5.5v13z" fill="currentColor" stroke="none"/></svg>
-      </button>
-      <button class="btn-round btn-primary" id="btnRestart" title="重新开始 (R)">
-        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3.5v4h-4"/></svg>
-      </button>
     </div>
   </section>
 
