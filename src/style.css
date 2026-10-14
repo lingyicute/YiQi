@@ -1,4 +1,13 @@
-@import './fonts/nebulove-subset.css';
+/* ===== Nebulove 子集（由 scripts/subset_font.py 生成）=====
+   只保留本项目会用到的 500 个字形（可渲染文本 模式）。独立 woff2 文件，
+   Vite 构建时按内容哈希命名并随产物发布（可长缓存）。改文案后请重跑该脚本。 ===== */
+@font-face {
+  font-family: 'Nebulove';
+  src: url("./fonts/nebulove-subset.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 /* ============ YiQi · Material You 设计（沿用 YiRenju 设计体系） ============ */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%}
