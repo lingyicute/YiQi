@@ -19,6 +19,7 @@ import argparse, base64, io, os, re, sys, urllib.request
 FONT_URL = "https://raw.githubusercontent.com/lingyicute/Nebulove/main/Nebulove.woff2"
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+OUT_FONT = os.path.join(ROOT, "src", "fonts", "nebulove-subset.woff2")
 OUT_CSS = os.path.join(ROOT, "src", "fonts", "nebulove-subset.css")
 ASCII = {chr(c) for c in range(32, 127)}
 PUNCT = set("：，。！？；‘’“”（）【】—…·《》×＝÷＋－、")
@@ -117,22 +118,23 @@ def main():
         print("--check：不写入。")
         return
 
-    b64 = base64.b64encode(wofl).decode("ascii")
+    os.makedirs(os.path.dirname(OUT_FONT), exist_ok=True)
+    open(OUT_FONT, "wb").write(wofl)
     css = (
-        "/* ===== Nebulove 子集（内嵌，离线可用）=====\n"
-        "   由 scripts/subset_font.py 生成：只保留本项目会用到的 %d 个字形（%s 模式），\n"
-        "   base64 内嵌随 CSS 一起打包，无额外网络请求。改文案后请重跑该脚本。 ===== */\n"
+        "/* ===== Nebulove 子集（由 scripts/subset_font.py 生成）=====\n"
+        "   只保留本项目会用到的 %d 个字形（%s 模式）。独立 woff2 文件，\n"
+        "   Vite 构建时按内容哈希命名并随产物发布（可长缓存）。改文案后请重跑该脚本。 ===== */\n"
         "@font-face {\n"
         "  font-family: 'Nebulove';\n"
-        '  src: url("data:font/woff2;base64,%s") format("woff2");\n'
+        '  src: url("./nebulove-subset.woff2") format("woff2");\n'
         "  font-weight: normal;\n"
         "  font-style: normal;\n"
         "  font-display: swap;\n"
-        "}" % (len(covered), mode, b64)
+        "}" % (len(covered), mode)
     )
-    os.makedirs(os.path.dirname(OUT_CSS), exist_ok=True)
     open(OUT_CSS, "w", encoding="utf-8").write(css + "\n")
-    print("已写入 %s（base64 %.1f KB）" % (os.path.relpath(OUT_CSS, ROOT), len(b64) / 1024))
+    print("已写入 %s（%.2f KB）与 %s" % (
+        os.path.relpath(OUT_FONT, ROOT), len(wofl) / 1024, os.path.relpath(OUT_CSS, ROOT)))
 
 
 if __name__ == "__main__":
