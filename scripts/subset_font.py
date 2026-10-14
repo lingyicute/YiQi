@@ -20,7 +20,9 @@ FONT_URL = "https://raw.githubusercontent.com/lingyicute/Nebulove/main/Nebulove.
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 OUT_FONT = os.path.join(ROOT, "src", "fonts", "nebulove-subset.woff2")
-OUT_CSS = os.path.join(ROOT, "src", "fonts", "nebulove-subset.css")
+STYLE_CSS = os.path.join(ROOT, "src", "style.css")
+# style.css 中由本脚本维护的 @font-face 块（幂等替换）
+FACE_RE = re.compile(r"/\* ===== Nebulove 子集（由 scripts/subset_font.py 生成）=====.*?\*/\s*@font-face\s*\{[^}]*\}", re.S)
 ASCII = {chr(c) for c in range(32, 127)}
 PUNCT = set("：，。！？；‘’“”（）【】—…·《》×＝÷＋－、")
 # 棋盘坐标（A–T 跳 I，与 board.ts 坐标标注一致）与常用补充
@@ -120,21 +122,32 @@ def main():
 
     os.makedirs(os.path.dirname(OUT_FONT), exist_ok=True)
     open(OUT_FONT, "wb").write(wofl)
-    css = (
+    block = (
         "/* ===== Nebulove 子集（由 scripts/subset_font.py 生成）=====\n"
         "   只保留本项目会用到的 %d 个字形（%s 模式）。独立 woff2 文件，\n"
         "   Vite 构建时按内容哈希命名并随产物发布（可长缓存）。改文案后请重跑该脚本。 ===== */\n"
         "@font-face {\n"
         "  font-family: 'Nebulove';\n"
-        '  src: url("./nebulove-subset.woff2") format("woff2");\n'
+        '  src: url("./fonts/nebulove-subset.woff2") format("woff2");\n'
         "  font-weight: normal;\n"
         "  font-style: normal;\n"
         "  font-display: swap;\n"
         "}" % (len(covered), mode)
     )
-    open(OUT_CSS, "w", encoding="utf-8").write(css + "\n")
-    print("已写入 %s（%.2f KB）与 %s" % (
-        os.path.relpath(OUT_FONT, ROOT), len(wofl) / 1024, os.path.relpath(OUT_CSS, ROOT)))
+    style = open(STYLE_CSS, encoding="utf-8").read()
+    if FACE_RE.search(style):
+        style = FACE_RE.sub(block, style)
+        action = "已替换"
+    elif 'nebulove-subset.css' in style:
+        # 兼容旧的 @import 引用方式
+        style = style.replace("@import './fonts/nebulove-subset.css';\n", block + "\n")
+        action = "已内联替换 @import"
+    else:
+        style = block + "\n" + style
+        action = "已插入"
+    open(STYLE_CSS, "w", encoding="utf-8").write(style)
+    print("已写入 %s（%.2f KB），style.css %s @font-face" % (
+        os.path.relpath(OUT_FONT, ROOT), len(wofl) / 1024, action))
 
 
 if __name__ == "__main__":
