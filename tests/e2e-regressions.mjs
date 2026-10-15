@@ -147,6 +147,40 @@ try {
       return app.dialogOpen && document.querySelector('.dlg-title').textContent.includes('规则说明');
     }), true);
   });
+  await test('rolling NN history matches replay across captures, passes, undo and new branches', async page => {
+    const result = await page.evaluate(() => {
+      const app = window.yiqi;
+      const Game = app.game.constructor;
+      let matched = true, replayedOnMove = 0;
+      const verify = () => {
+        const replay = new Game(app.game.size);
+        let prev = null, prev2 = null;
+        for (const move of app.game.moves) {
+          prev2 = prev; prev = replay.board.map(row => row.slice());
+          if (move.x === -1) replay.pass(); else replay.place(move.x, move.y);
+        }
+        matched &&= JSON.stringify(app.lastAnalyzedBoards.prev) === JSON.stringify(prev)
+          && JSON.stringify(app.lastAnalyzedBoards.prev2) === JSON.stringify(prev2);
+      };
+      for (const size of [9, 13, 19]) {
+        app.settings.boardSize = size; app.newGame();
+        for (const [x, y] of [[8,8], [0,0], [1,0], [8,7], [0,1], [-1,-1], [3,3]]) {
+          let calls = 0;
+          const place = Game.prototype.place;
+          Game.prototype.place = function (...args) { calls++; return place.apply(this, args); };
+          try { app.humanPlace(x, y); } finally { Game.prototype.place = place; }
+          replayedOnMove += Math.max(0, calls - (x === -1 ? 0 : 1));
+          verify();
+        }
+        app.undo(); verify();
+        app.commitMove(4, 4, true); verify();
+        app.undo(); app.undo(); verify();
+        app.humanPlace(5, 5); verify();
+      }
+      return { matched, replayedOnMove };
+    });
+    assert.deepEqual(result, { matched: true, replayedOnMove: 0 });
+  });
 } finally {
   await browser.close();
 }
