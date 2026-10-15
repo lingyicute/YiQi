@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Nebulove 字体子集化 & 内嵌（方式与 YiRenju / YiMines 一致）
+Nebulove 字体子集化
 
 扫描 index.html 与 src/ 全部源码中的可渲染文本字符（剔除注释、模板字符串
 中的 HTML 标签等不渲染内容），加上 ASCII / 中文标点 / 棋盘坐标字母，生成
-Nebulove 子集，base64 内嵌到 src/fonts/nebulove-subset.css（由 style.css
-@import 引入，随构建打包，无额外网络请求）。
+Nebulove 子集到 src/fonts/nebulove-subset.woff2，并更新 style.css 的
+@font-face；Vite 构建时将字体输出为带哈希的独立静态资源。
 
   pip install fonttools brotli
 
-  python3 scripts/subset_font.py                # 生成/更新子集 CSS
+  python3 scripts/subset_font.py                # 生成/更新子集字体与 @font-face
   python3 scripts/subset_font.py --check        # 只报告，不写入
   python3 scripts/subset_font.py --all-text     # 保守模式：文件里出现的字符全收
   python3 scripts/subset_font.py --extra-chars glyphs.txt
