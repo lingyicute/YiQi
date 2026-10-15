@@ -1,5 +1,5 @@
 /* ===== Nebulove 子集（由 scripts/subset_font.py 生成）=====
-   只保留本项目会用到的 500 个字形（可渲染文本 模式）。独立 woff2 文件，
+   只保留本项目会用到的 501 个字形（可渲染文本 模式）。独立 woff2 文件，
    Vite 构建时按内容哈希命名并随产物发布（可长缓存）。改文案后请重跑该脚本。 ===== */
 @font-face {
   font-family: 'Nebulove';
