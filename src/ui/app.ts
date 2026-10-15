@@ -55,7 +55,7 @@ class App {
 
   ai = new AiPlayer();
   aiDownloadDismissed = false;
-  private lastAnalyzedBoards: { cur: number[][] | null; prev: number[][] | null; prev2: number[][] | null } = { cur: null, prev: null, prev2: null };
+  private lastAnalyzedBoards: { prev: number[][] | null; prev2: number[][] | null } = { prev: null, prev2: null };
 
   constructor() {
     this.game = new GoGame(this.settings.boardSize);
@@ -196,7 +196,7 @@ class App {
       this.elapsed = 0;
       $('timer').textContent = '00:00';
     }
-    this.lastAnalyzedBoards = { cur: null, prev: null, prev2: null };
+    this.lastAnalyzedBoards = { prev: null, prev2: null };
     LS.set('session', null);
     this.updateScoringUI();
     this.updateHUD();
@@ -226,15 +226,20 @@ class App {
       else replay.place(m.x, m.y);
     }
     this.lastAnalyzedBoards = {
-      cur: this.game.board.map((r) => r.slice()),
       prev,
       prev2,
     };
   }
 
+  /** 正常落子只需滚动两帧；仅悔棋/续局需要完整重放。 */
+  private advanceBoards(previous: number[][]): void {
+    this.lastAnalyzedBoards = { prev: previous, prev2: this.lastAnalyzedBoards.prev };
+  }
+
   /** 落子（已通过规则校验后调用）。 */
   private commitMove(x: number, y: number, silent = false): void {
     const color = this.game.playerToMove === 'black' ? BLACK : WHITE;
+    const previous = this.game.board.map(row => row.slice());
     try {
       if (x === -1) this.game.pass();
       else this.game.place(x, y);
@@ -247,7 +252,7 @@ class App {
       }
       throw err;
     }
-    this.snapshotBoards();
+    this.advanceBoards(previous);
     if (!silent) playStoneSound(color === WHITE, this.settings.sound);
     triggerHaptic('move');
     this.renderer.state.lastMove = { x, y, at: now() };
@@ -268,6 +273,7 @@ class App {
     if (x >= 0 && this.game.board[y]![x] !== 0) return false;
     const moverIsBlack = this.game.playerToMove === 'black';
     this.renderer.kbdCursor = false;
+    const previous = this.game.board.map(row => row.slice());
     try {
       if (x === -1) this.game.pass();
       else this.game.place(x, y);
@@ -281,7 +287,7 @@ class App {
       }
       throw err;
     }
-    this.snapshotBoards();
+    this.advanceBoards(previous);
     playStoneSound(!moverIsBlack, this.settings.sound);
     triggerHaptic('move');
     this.renderer.state.lastMove = { x, y, at: now() };
@@ -319,6 +325,7 @@ class App {
       // 合法性探针：独立棋盘试下+撤销，避免主棋盘被污染
       const probe = new GoGame(this.game.size);
       probe.resetToMoves(this.game.moves);
+      const legalMoves = new Map<number, boolean>();
       const mv = await this.ai.chooseMove({
         difficulty: MODE_TO_DIFF[this.mode] || 'hard',
         board: snapToNN(this.game),
@@ -330,13 +337,18 @@ class App {
         rules: 'chinese-ogs',
         isLegal: (x, y) => {
           if (x < 0 || y < 0) return true;
-          if (probe.board[y]![x] !== 0) return false;
+          const key = y * probe.size + x;
+          const known = legalMoves.get(key);
+          if (known !== undefined) return known;
+          if (probe.board[y]?.[x] !== 0) return false;
           try {
             probe.place(x, y);
           } catch {
+            legalMoves.set(key, false);
             return false;
           }
           probe.undo(1);
+          legalMoves.set(key, true);
           return true;
         },
       });
