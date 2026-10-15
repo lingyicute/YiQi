@@ -51,6 +51,8 @@ export class AiPlayer {
   private humanBlob: Blob | null = null;
   private backend: string | null = null;
   private aborted = 0;
+  private setupTask: Promise<void> | null = null;
+  private setupGeneration = 0;
   status: AIStatus = 'idle';
   lastError: string | null = null;
   /** 最近一次分析的目差（黑方视角），供状态栏显示。 */
@@ -66,28 +68,45 @@ export class AiPlayer {
   }
 
   /** 下载（带进度回调）并初始化引擎。重复调用安全。 */
-  async setup(onProgress: (received: number, total: number, speed: number) => void): Promise<void> {
-    if (this.status === 'ready' || this.status === 'downloading' || this.status === 'initializing') return;
+  setup(onProgress: (received: number, total: number, speed: number) => void): Promise<void> {
+    if (this.status === 'ready') return Promise.resolve();
+    if (this.setupTask) return this.setupTask;
+    const generation = ++this.setupGeneration;
+    this.setupTask = this.runSetup(onProgress, generation).finally(() => {
+      if (generation === this.setupGeneration) this.setupTask = null;
+    });
+    return this.setupTask;
+  }
+
+  private async runSetup(onProgress: (received: number, total: number, speed: number) => void, generation: number): Promise<void> {
+    this.releaseModels();
     this.status = 'downloading';
     this.lastError = null;
     try {
       const backend = await preferredBackend();
       const { humanModelUrl, humanBlob, mainModelUrl } = await prepareModels((p) => {
-        onProgress(p.receivedBytes, p.totalBytes, p.bytesPerSecond);
+        if (generation === this.setupGeneration) onProgress(p.receivedBytes, p.totalBytes, p.bytesPerSecond);
       });
+      if (generation !== this.setupGeneration) {
+        revokeModelUrl(humanModelUrl);
+        revokeModelUrl(mainModelUrl);
+        throw new Error('canceled');
+      }
       this.humanModelUrl = humanModelUrl;
       this.mainModelUrl = mainModelUrl;
-      // 记录 Blob 供首次 analyze 零拷贝 transfer；传输后即释放主线程引用
       this.humanBlob = humanBlob;
       this.status = 'initializing';
-      this.client?.dispose();
       this.client = new KataGoClient();
       const init: InitResult = await this.client.init(mainModelUrl, backend);
+      if (generation !== this.setupGeneration) throw new Error('canceled');
       this.backend = init.backend;
       this.status = 'ready';
     } catch (err) {
-      this.status = 'failed';
-      this.lastError = err instanceof Error ? err.message : String(err);
+      if (generation === this.setupGeneration) {
+        this.releaseModels();
+        this.status = 'failed';
+        this.lastError = err instanceof Error ? err.message : String(err);
+      }
       throw err;
     }
   }
@@ -103,6 +122,7 @@ export class AiPlayer {
   /** 让正在进行的思考作废（悔棋/重开/换难度）。返回作废令牌。 */
   cancel(): void {
     this.aborted++;
+    this.client?.cancel();
   }
 
   /**
@@ -124,7 +144,7 @@ export class AiPlayer {
     if (!this.client || !this.mainModelUrl || !this.humanModelUrl) {
       throw new Error('AI 尚未就绪');
     }
-    const token = ++this.aborted && this.aborted;
+    const token = ++this.aborted;
     args.onStarted?.();
 
     const analyzeArgs: AnalyzeArgs = {
@@ -146,10 +166,8 @@ export class AiPlayer {
       nnRandomize: true,
       humanModelUrl: this.humanModelUrl,
       humanModelBlobProvider: () => {
-        const b = this.humanBlob;
-        this.humanBlob = null; // 一次性：transfer 后释放主线程引用
-        if (b && this.humanModelUrl) revokeModelUrl(this.humanModelUrl); // URL 字符串仍作缓存键
-        return b;
+        // 成功分析后才释放：准备过程中可能被取消，Worker 也可能尚未消费 buffer。
+        return this.humanBlob;
       },
       humanSlProfile: DIFFICULTY_PROFILES[args.difficulty],
       humanSlRootExploreProb: 0,
@@ -162,6 +180,8 @@ export class AiPlayer {
       if (this.aborted !== token) throw new Error('canceled');
     }
     if (!analysis) throw new Error('AI 分析失败');
+    this.humanBlob = null;
+    // 保留 Blob URL 到 dispose，供 Worker 加载失败后的重试使用。
 
     this.lastScoreLead = analysis.rootScoreLead;
 
@@ -224,13 +244,21 @@ export class AiPlayer {
   }
 
   dispose(): void {
+    this.setupGeneration++;
+    this.setupTask = null;
     this.cancel();
+    this.releaseModels();
+    this.status = 'idle';
+  }
+
+  private releaseModels(): void {
     this.client?.dispose();
     this.client = null;
-    if (this.humanModelUrl) {
-      revokeModelUrl(this.humanModelUrl);
-      this.humanModelUrl = null;
-    }
-    this.status = 'idle';
+    if (this.humanModelUrl) revokeModelUrl(this.humanModelUrl);
+    if (this.mainModelUrl) revokeModelUrl(this.mainModelUrl);
+    this.humanModelUrl = null;
+    this.mainModelUrl = null;
+    this.humanBlob = null;
+    this.backend = null;
   }
 }

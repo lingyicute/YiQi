@@ -9,6 +9,7 @@
  * 下载结果写入 Cache Storage（'yiqi-models-v1'），长期复用、二次打开零下载。
  */
 import pako from 'pako';
+import { loadModelFile } from './modelCache';
 import type { KataGoBackendPreference } from './types';
 
 export const MAIN_MODEL_PATH = 'ai/g170-b6c96-s175395328-d26788732.bin.gz';
@@ -65,44 +66,12 @@ export async function modelsCached(): Promise<boolean> {
 
 type ProgressCb = (p: DownloadProgress) => void;
 
-/** 带进度的分片下载（ReadableStream 计速），返回合并后的完整 gzip Blob。 */
-async function fetchWithProgress(
-  url: string,
-  expectedBytes: number | null,
-  onChunk: (got: number) => void,
-  signal?: AbortSignal
-): Promise<Blob> {
-  const res = await fetch(url, { signal });
-  if (!res.ok) throw new Error(`下载失败：HTTP ${res.status}（${url}）`);
-  if (!res.body) {
-    const blob = await res.blob();
-    onChunk(blob.size);
-    return blob;
-  }
-  const reader = res.body.getReader();
-  const parts: Uint8Array[] = [];
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) {
-      parts.push(value);
-      onChunk(value.byteLength);
-    }
-  }
-  const blob = new Blob(parts as BlobPart[], { type: 'application/octet-stream' });
-  if (expectedBytes && Math.abs(blob.size - expectedBytes) > 4096) {
-    // 部分服务器会再做一层传输压缩（fetch 自动解压），此时体积与磁盘文件不同——只提示不失败
-    console.info(`[yiqi] ${url} 传输体积 ${blob.size}B（磁盘 ${expectedBytes}B），可能经过传输层解压`);
-  }
-  return blob;
-}
-
 export type ModelPrepareResult = {
   /** 人类网络 Blob URL（标识字符串，供 Worker 侧缓存键；首请求以 buffer 零拷贝传输）。 */
   humanModelUrl: string;
   /** 人类网络原始字节（一次性 transfer 用）。 */
   humanBlob: Blob;
-  /** 主网络 URL（静态路径，Worker 直接 fetch）。 */
+  /** 主网络 Blob URL（缓存或下载所得字节，Worker 无需重复下载）。 */
   mainModelUrl: string;
 };
 
@@ -134,68 +103,50 @@ export async function prepareModels(
   for (let i = 0; i < HUMAN_MODEL_SHARDS.length; i++) {
     const shard = HUMAN_MODEL_SHARDS[i]!;
     const expected = HUMAN_SHARD_BYTES[i]!;
-    let blob: Blob | null = null;
-    if (cache) {
-      const hit = await cache.match(withBase(shard));
-      if (hit) blob = await hit.blob();
-    }
-    if (!blob) {
-      blob = await fetchWithProgress(withBase(shard), expected, (got) => {
-        counters.human += got;
-        report();
-      }, signal);
-      if (cache) {
-        try {
-          await cache.put(withBase(shard), new Response(blob, { headers: { 'Content-Type': 'application/octet-stream' } }));
-        } catch { /* 容量不足等情况忽略，缓存只是加速手段 */ }
-      }
-    } else {
-      counters.human += blob.size;
+    const blob = await loadModelFile(cache, withBase(shard), expected, (got) => {
+      counters.human += got;
       report();
-    }
-    if (Math.abs(blob.size - expected) > 1024) {
-      throw new Error(`分片 ${shard.split('/').pop()} 体积异常：${blob.size}B，期望 ${expected}B（可能被传输层重新压缩或截断，请刷新重试）`);
-    }
-    console.info(`[yiqi] 分片 ${shard.split('/').pop()} 就绪：${blob.size}B`);
+    }, signal);
     shardBlobs.push(blob);
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   }
   // 拼接完整 gzip 并解压为原始模型字节
   const humanGzip = new Blob(shardBlobs, { type: 'application/gzip' });
-  const humanRaw = await gunzipBlob(humanGzip);
-  if (Math.abs(humanRaw.size - HUMAN_MODEL_RAW_BYTES) > 1024) {
-    throw new Error(`人类网络解压结果异常：${humanRaw.size}B，期望 ${HUMAN_MODEL_RAW_BYTES}B`);
-  }
-
-  // 2) 主网络：缓存优先，否则下载并写缓存（保持 gzip；引擎 Worker 自带 maybeUngzip）
-  if (cache && !(await cache.match(withBase(MAIN_MODEL_PATH)))) {
-    const blob = await fetchWithProgress(withBase(MAIN_MODEL_PATH), MAIN_MODEL_TOTAL_BYTES, (got) => {
-      counters.main += got;
-      report();
-    }, signal);
-    if (Math.abs(blob.size - MAIN_MODEL_TOTAL_BYTES) > 1024) {
-      throw new Error(`主网络模型体积异常：${blob.size}B，期望 ${MAIN_MODEL_TOTAL_BYTES}B`);
+  let humanRaw: Blob;
+  try {
+    humanRaw = await gunzipBlob(humanGzip);
+    if (humanRaw.size !== HUMAN_MODEL_RAW_BYTES) {
+      throw new Error(`人类网络解压结果异常：${humanRaw.size}B，期望 ${HUMAN_MODEL_RAW_BYTES}B`);
     }
-    try {
-      await cache.put(withBase(MAIN_MODEL_PATH), new Response(blob, { headers: { 'Content-Type': 'application/gzip' } }));
-    } catch { /* ignore */ }
-  } else if (cache) {
-    const hit = await cache.match(withBase(MAIN_MODEL_PATH));
-    counters.main += (await hit?.blob())?.size ?? MAIN_MODEL_TOTAL_BYTES;
-    report();
+  } catch (err) {
+    // 同尺寸损坏也可能通过长度校验；清除全部分片，确保下一次重试可以自愈。
+    if (cache) await Promise.all(HUMAN_MODEL_SHARDS.map(async (path) => {
+      try { await cache.delete(withBase(path)); } catch { /* ignore */ }
+    }));
+    throw err;
   }
+  signal?.throwIfAborted();
 
-  return {
-    humanModelUrl: URL.createObjectURL(humanRaw),
-    humanBlob: humanRaw,
-    mainModelUrl: withBase(MAIN_MODEL_PATH),
-  };
+  // 无缓存/写缓存失败时也必须下载并使用主网络，而非让 Worker 再 fetch 静态路径。
+  const mainBlob = await loadModelFile(cache, withBase(MAIN_MODEL_PATH), MAIN_MODEL_TOTAL_BYTES, (got) => {
+    counters.main += got;
+    report();
+  }, signal);
+  signal?.throwIfAborted();
+  const humanModelUrl = URL.createObjectURL(humanRaw);
+  try {
+    return { humanModelUrl, humanBlob: humanRaw, mainModelUrl: URL.createObjectURL(mainBlob) };
+  } catch (err) {
+    revokeModelUrl(humanModelUrl);
+    throw err;
+  }
 }
 
-/** 解压 gzip Blob（分块流式，避免阻塞 UI）；结果非 gzip 时原样返回。 */
+/** 优先使用浏览器流式解压；旧浏览器回退到同步 pako。 */
 async function gunzipBlob(blob: Blob): Promise<Blob> {
-  const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
-  if (head[0] !== 0x1f || head[1] !== 0x8b) return blob;
+  if (typeof DecompressionStream !== 'undefined') {
+    return new Response(blob.stream().pipeThrough(new DecompressionStream('gzip'))).blob();
+  }
   const raw = pako.ungzip(new Uint8Array(await blob.arrayBuffer()));
   return new Blob([raw], { type: 'application/octet-stream' });
 }
