@@ -62,4 +62,18 @@ describe('AI setup lifecycle', () => {
     ai.dispose();
   });
 
+  it('a crashed worker is not ready and setup can replace it', async () => {
+    vi.mocked(prepareModels).mockResolvedValue(result());
+    const ai = new AiPlayer();
+    await ai.setup(() => {});
+    const client = vi.mocked(KataGoClient).mock.results[0]!.value;
+    client.backendCrash = new Error('crashed');
+    expect(ai.ready).toBe(false);
+    await ai.setup(() => {});
+    expect(client.dispose).toHaveBeenCalled();
+    expect(KataGoClient).toHaveBeenCalledTimes(2);
+    expect(ai.ready).toBe(true);
+    ai.dispose();
+  });
+
 });
