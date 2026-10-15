@@ -47,7 +47,8 @@ export class KataGoClient {
   }>();
   private pendingInit: { resolve: (r: InitResult) => void; reject: (e: Error) => void } | null = null;
   private crashed: Error | null = null;
-  private humanBufferSent = false;
+  private humanBufferSent = new Set<string>();
+  private prepareQueue: Promise<void> = Promise.resolve();
 
   constructor() {
     const Ctor = getWorkerConstructor();
@@ -56,7 +57,7 @@ export class KataGoClient {
     this.worker = new Worker(new URL('./katago/engineWorker.ts', import.meta.url), { type: 'module' });
     void Ctor;
     this.worker.onmessage = (ev: MessageEvent<KataGoWorkerResponse>) => {
-      this.crashed = null;
+      if (this.crashed) return;
       const msg = ev.data;
       if (msg.type === 'katago:notice') {
         if (msg.level === 'warn') console.warn('[katago]', msg.message);
@@ -85,25 +86,35 @@ export class KataGoClient {
     };
     this.worker.onerror = (ev) => {
       const err = new Error(ev.message || 'AI 引擎崩溃');
-      this.crashed = err;
-      for (const [, p] of this.pendingAnalyze) p.reject(err);
-      this.pendingAnalyze.clear();
-      this.pendingInit?.reject(err);
-      this.pendingInit = null;
+      this.fail(err);
     };
+    this.worker.onmessageerror = () => this.fail(new Error('AI 引擎消息无法解码'));
+  }
+
+  private fail(err: Error): void {
+    this.crashed = err;
+    for (const pending of this.pendingAnalyze.values()) pending.reject(err);
+    this.pendingAnalyze.clear();
+    this.pendingInit?.reject(err);
+    this.pendingInit = null;
   }
 
   get backendCrash(): Error | null {
     return this.crashed;
   }
 
-  init(modelUrl: string, backend?: KataGoBackendPreference): Promise<InitResult> {
+  async init(modelUrl: string, backend?: KataGoBackendPreference): Promise<InitResult> {
     this.rejectIfCrashed();
-    const p = new Promise<InitResult>((resolve, reject) => {
+    if (this.pendingInit) throw new Error('引擎正在初始化');
+    return new Promise<InitResult>((resolve, reject) => {
       this.pendingInit = { resolve, reject };
+      try {
+        this.post({ type: 'katago:init', modelUrl, backend });
+      } catch (err) {
+        this.pendingInit = null;
+        reject(err);
+      }
     });
-    this.post({ type: 'katago:init', modelUrl, backend });
-    return p;
   }
 
   async analyze(args: AnalyzeArgs): Promise<KataGoAnalysisPayload> {
@@ -134,34 +145,46 @@ export class KataGoClient {
       humanSlProfile: args.humanSlProfile,
       humanSlRootExploreProb: args.humanSlRootExploreProb,
     };
-    // 人类网络字节只传输一次（transferable 零拷贝），之后 Worker 常驻已解析的模型
-    let transfer: Transferable[] | undefined;
-    if (!this.humanBufferSent && args.humanModelUrl && args.humanModelBlobProvider) {
-      const blob = await args.humanModelBlobProvider();
-      if (blob) {
-        req.humanModelBuffer = await blob.arrayBuffer();
-        transfer = [req.humanModelBuffer];
-      }
-      this.humanBufferSent = true;
-    }
-    const p = new Promise<KataGoAnalysisPayload>((resolve, reject) => {
+    // 先登记请求，再异步读 Blob；取消/崩溃/销毁均可立即结束调用方的等待。
+    return new Promise<KataGoAnalysisPayload>((resolve, reject) => {
       this.pendingAnalyze.set(id, { resolve, reject });
+      // 串行准备 transfer，防止首批并发请求重复读取百兆模型。
+      this.prepareQueue = this.prepareQueue.then(async () => {
+        if (!this.pendingAnalyze.has(id)) return;
+        let transfer: Transferable[] | undefined;
+        if (args.humanModelUrl && !this.humanBufferSent.has(args.humanModelUrl) && args.humanModelBlobProvider) {
+          const blob = await args.humanModelBlobProvider();
+          if (!this.pendingAnalyze.has(id)) return;
+          if (blob) {
+            req.humanModelBuffer = await blob.arrayBuffer();
+            transfer = [req.humanModelBuffer];
+          }
+        }
+        if (!this.pendingAnalyze.has(id)) return;
+        this.post(req, transfer);
+        if (req.humanModelBuffer && args.humanModelUrl) this.humanBufferSent.add(args.humanModelUrl);
+      }).catch((err: unknown) => {
+        const pending = this.pendingAnalyze.get(id);
+        this.pendingAnalyze.delete(id);
+        pending?.reject(err instanceof Error ? err : new Error(String(err)));
+      });
     });
-    try {
-      this.post(req, transfer);
-    } catch (err) {
-      this.pendingAnalyze.delete(id);
-      throw err instanceof Error ? err : new Error(String(err));
+  }
+
+  cancel(): void {
+    for (const [id, pending] of this.pendingAnalyze) {
+      try { this.post({ type: 'katago:cancel', id, analysisGroup: 'background' }); } catch { /* worker unavailable */ }
+      pending.reject(new Error('canceled'));
     }
-    return p;
+    this.pendingAnalyze.clear();
+    this.prepareQueue = Promise.resolve();
   }
 
   dispose(): void {
+    this.fail(new Error('AI 引擎已销毁'));
     try {
       this.worker.terminate();
     } catch { /* ignore */ }
-    this.pendingAnalyze.clear();
-    this.pendingInit = null;
   }
 
   private rejectIfCrashed(): void {
