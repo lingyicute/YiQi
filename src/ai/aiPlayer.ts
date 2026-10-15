@@ -180,8 +180,11 @@ export class AiPlayer {
       if (this.aborted !== token) throw new Error('canceled');
     }
     if (!analysis) throw new Error('AI 分析失败');
-    this.humanBlob = null;
-    // 保留 Blob URL 到 dispose，供 Worker 加载失败后的重试使用。
+    if (analysis.humanPolicy && this.humanBlob) {
+      // Worker 确认人类网络可用后才释放百兆 Blob；失败/取消时仍可重试。
+      this.humanBlob = null;
+      if (this.humanModelUrl) revokeModelUrl(this.humanModelUrl);
+    }
 
     this.lastScoreLead = analysis.rootScoreLead;
 
