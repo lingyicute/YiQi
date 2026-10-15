@@ -11,10 +11,12 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:rules": "vitest run tests/rules.test.ts",
-    "test:engine": "ENGINE_TESTS=1 vitest run tests/engine.test.ts",
+    "test:rules": "vitest run tests/rules.test.ts tests/rules-regressions.test.ts tests/board-parity.test.ts",
+    "test:engine": "vitest run tests/engine.test.ts tests/model-parser.test.ts",
     "copy:tfjs-wasm": "node scripts/copy-tfjs-wasm.mjs",
-    "subset:font": "python3 scripts/subset_font.py"
+    "subset:font": "python3 scripts/subset_font.py",
+    "prebuild": "npm run copy:tfjs-wasm",
+    "test:e2e": "node tests/run-e2e.mjs"
   },
   "dependencies": {
     "@tensorflow/tfjs-backend-wasm": "^4.22.0",
@@ -30,6 +32,9 @@
     "playwright-core": "^1.64.0",
     "typescript": "5.9",
     "vite": "^6.0.0",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }
