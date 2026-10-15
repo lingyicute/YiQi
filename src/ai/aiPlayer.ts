@@ -69,7 +69,7 @@ export class AiPlayer {
 
   /** 下载（带进度回调）并初始化引擎。重复调用安全。 */
   setup(onProgress: (received: number, total: number, speed: number) => void): Promise<void> {
-    if (this.status === 'ready') return Promise.resolve();
+    if (this.ready) return Promise.resolve();
     if (this.setupTask) return this.setupTask;
     const generation = ++this.setupGeneration;
     this.setupTask = this.runSetup(onProgress, generation).finally(() => {
@@ -112,7 +112,7 @@ export class AiPlayer {
   }
 
   get ready(): boolean {
-    return this.status === 'ready' && !!this.client;
+    return this.status === 'ready' && !!this.client && !this.client.backendCrash;
   }
 
   get backendName(): string | null {
