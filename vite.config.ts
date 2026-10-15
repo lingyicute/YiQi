@@ -25,13 +25,16 @@ function modelContentType(): Plugin {
   };
 }
 
+// 默认仅接受 Vite 内置的 localhost/IP；代理预览域名须显式授权，避免禁用 Host 校验。
+const allowedHosts = (process.env.YIQI_ALLOWED_HOSTS ?? '').split(',').map(host => host.trim()).filter(Boolean);
+
 export default defineConfig({
   plugins: [modelContentType()],
   base: '/',
   server: {
     host: '0.0.0.0',
     port: 5173,
-    allowedHosts: true,
+    allowedHosts,
     // 与生产（Cloudflare Pages `_headers`）一致：跨域隔离，启用 SharedArrayBuffer
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
@@ -41,7 +44,7 @@ export default defineConfig({
   preview: {
     host: '0.0.0.0',
     port: 4173,
-    allowedHosts: true,
+    allowedHosts,
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',

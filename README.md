@@ -65,6 +65,8 @@ npm run copy:tfjs-wasm   # 拷贝 TF.js WASM 运行时到 public/tfjs/
 npm run dev              # http://localhost:5173
 ```
 
+开发/预览服务监听 `0.0.0.0`，请仅在可信网络运行。默认保留 Vite 的 Host 校验；反向代理或远程预览需要额外域名时，显式设置，例如 `YIQI_ALLOWED_HOSTS=preview.example.com npm run dev`（逗号分隔，不填写不受信任的域名）。
+
 生产构建与预览：
 
 ```bash
