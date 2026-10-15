@@ -1,4 +1,4 @@
-<h1>YiQi</h3>
+<h1>YiQi</h1>
 <h3></h3>
 
 <p>纯前端围棋对弈小游戏：KataGo 人类模型驱动的四档人机对战（20级 → 3段），双人同屏，9 / 13 / 19 路棋盘，中国规则（数子法，黑贴 7.5 目）。</p>
@@ -38,7 +38,7 @@
 
 - **💾 续局**：未完成的对局保存在浏览器，重开页面自动恢复（含用时）。
 
-- **📊 战绩统计**：按难度 × 执子颜色记录人机胜负。
+- **📊 战绩统计**：按难度记录人机胜负（合并执黑与执白）。
 
 - **🎨 Material You**：深色 / 浅色主题一键切换，八种强调色（紫/蓝/青/绿/黄/橙/粉/红），跟随系统主题防闪烁。
 
@@ -55,12 +55,12 @@
 - 首次使用人机对战需下载 KataGo 模型（约 103 MB，含 94.5 MB 人类模型），下载后存入浏览器 Cache Storage 长期复用；可选择跳过，只用双人对战。
 - 需要 **WebAssembly**；支持 WebGPU 的浏览器（Chrome/Edge 121+，iOS/iPadOS 26+）会自动启用 WebGPU 后端，否则回退 WASM（多线程需跨域隔离，站点已配置 COOP/COEP）。
 
-本地开发：
+本地开发（Node.js 20.19+，建议使用受支持的 LTS 版本）：
 
 ```bash
 git clone https://github.com/lingyicute/YiQi.git
 cd YiQi
-npm install
+npm ci
 npm run copy:tfjs-wasm   # 拷贝 TF.js WASM 运行时到 public/tfjs/
 npm run dev              # http://localhost:5173
 ```
@@ -68,11 +68,11 @@ npm run dev              # http://localhost:5173
 生产构建与预览：
 
 ```bash
-npm run build            # 产物在 dist/
+npm run build            # 自动拷贝 WASM，产物在 dist/
 npm run preview          # 本地预览 dist/（带 COOP/COEP 头）
 ```
 
-字体：Nebulove 子集以 base64 内嵌于 `src/fonts/nebulove-subset.css`（随 CSS 打包，无网络请求，方式同 YiRenju）。**修改界面文案后**请 `pip install fonttools brotli` 并重跑 `npm run subset:font`，否则新增字符会回退到系统字体。
+字体：Nebulove 子集位于 `src/fonts/nebulove-subset.woff2`，由 `src/style.css` 的 `@font-face` 引用，构建后使用带哈希的静态资源 URL。**修改界面文案后**请 `pip install fonttools brotli` 并重跑 `npm run subset:font`，否则新增字符会回退到系统字体。
 
 <br>
 
@@ -113,7 +113,9 @@ npm run preview          # 本地预览 dist/（带 COOP/COEP 头）
 ## 🤖 CI（GitHub Actions）
 
 `.github/workflows/build.yml`：每次提交到 `main` 立即构建（`npm ci` → 拷贝 TF.js WASM → `vite build`），
-并把 `dist/` 产物提交回库。
+构建前执行 TypeScript 检查与单元测试，通过后才把 `dist/` 产物提交回库。
+
+`.github/workflows/check.yml`：对 Pull Request 执行类型检查、单元测试、生产构建及 Chromium UI / 模型缓存 / AI 全链路测试；该工作流仅有仓库读取权限，不提交构建产物。
 
 <br>
 
@@ -122,9 +124,15 @@ npm run preview          # 本地预览 dist/（带 COOP/COEP 头）
 ```bash
 npm run test:rules        # 规则层单测（提子/打劫/超级劫/计分/悔棋/SGF）
 npm run test:engine       # KataGo 引擎层（模型解析/MCTS/人类网络元数据，需模型文件）
-npm run test              # 两者全部
+npm run test              # 全部单元测试（含缓存、Worker、存档、解析器与规则差分）
 node tests/e2e.mjs        # UI 端到端（需先 build + preview）
 node tests/e2e-ai.mjs     # AI 全链路端到端（下载→初始化→人机对弈→缓存）
+
+# 推荐的一次性完整浏览器验证：自动启动/关闭生产预览服务
+npx playwright-core install --with-deps chromium
+npm run build
+npm run test:e2e
+# 已有预览服务时：BASE_URL=http://localhost:4173 npm run test:e2e
 ```
 
 <br>
@@ -134,8 +142,8 @@ node tests/e2e-ai.mjs     # AI 全链路端到端（下载→初始化→人机�
 - 本项目代码：**AGPL-3.0**，见 [LICENSE](./LICENSE)。
 - 依赖：
   - 规则层 [goban-engine](https://github.com/online-go/goban)：Apache-2.0（Online-Go.com）
-  - AI 层移植自 [web-katrain](https://github.com/Sir-Teo/web-katrain)：MIT
-  - [KataGo](https://github.com/lightvector/KataGo) 及其模型：非商业授权（[详见 KataGo LICENSE](https://github.com/lightvector/KataGo/blob/master/LICENSE)），模型来自 [katagotraining.org](https://katagotraining.org)
+  - AI 层移植自 [web-katrain](https://github.com/Sir-Teo/web-katrain)：MIT，保留声明见 [web-katrain-MIT.txt](public/licenses/web-katrain-MIT.txt)
+  - [KataGo](https://github.com/lightvector/KataGo) 引擎主体代码：MIT（外部组件另有许可，见 [KataGo LICENSE](public/licenses/KataGo-LICENSE.txt)）；不能把引擎代码许可等同于模型许可。仓库内两个模型的具体来源版本及再分发条件应分别核对下载源说明，不能笼统标注为“非商业授权”。
   - TensorFlow.js：Apache-2.0
 
 由 ❤️ 与 KataGo 驱动 · [lingyicute](https://github.com/lingyicute)
