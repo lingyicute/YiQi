@@ -34,19 +34,20 @@ export class KataGoBinModelParser {
 
   readInt(): number {
     const tok = this.readToken();
-    const value = Number.parseInt(tok, 10);
-    if (!Number.isFinite(value)) throw new Error(`Invalid int token: ${tok}`);
+    const value = Number(tok);
+    if (!/^[+-]?\d+$/.test(tok) || !Number.isSafeInteger(value)) throw new Error(`Invalid int token: ${tok}`);
     return value;
   }
 
   readFloatAscii(): number {
     const tok = this.readToken();
-    const value = Number.parseFloat(tok);
-    if (!Number.isFinite(value)) throw new Error(`Invalid float token: ${tok}`);
+    const value = Number(tok);
+    if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(tok) || !Number.isFinite(value)) throw new Error(`Invalid float token: ${tok}`);
     return value;
   }
 
   readBinaryFloats(count: number): Float32Array {
+    if (!Number.isSafeInteger(count) || count < 0) throw new Error('Invalid binary float count');
     this.skipWhitespace();
     const marker = this.data.subarray(this.idx, this.idx + 5);
     if (
@@ -61,10 +62,13 @@ export class KataGoBinModelParser {
     }
     this.idx += 5;
 
+    // 输入可能只是较大 ArrayBuffer 的子视图，不能以底层 buffer 长度作为 EOF。
+    if (count > Math.floor((this.data.length - this.idx) / 4)) {
+      throw new Error('Unexpected EOF while reading binary floats');
+    }
     const byteLen = count * 4;
     const absStart = this.data.byteOffset + this.idx;
     const absEnd = absStart + byteLen;
-    if (absEnd > this.data.buffer.byteLength) throw new Error('Unexpected EOF while reading binary floats');
 
     const buf = this.data.buffer.slice(absStart, absEnd);
     this.idx += byteLen;
