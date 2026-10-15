@@ -9,7 +9,7 @@ vi.mock('../src/ai/modelFiles', () => ({
 }));
 vi.mock('../src/ai/client', () => ({
   KataGoClient: vi.fn(function () {
-    return { init: vi.fn(async () => ({ backend: 'wasm' })), dispose: vi.fn(), cancel: vi.fn() };
+    return { init: vi.fn(async () => ({ backend: 'wasm' })), dispose: vi.fn(), cancel: vi.fn(), analyze: vi.fn() };
   }),
 }));
 const result = () => ({ humanModelUrl: 'blob:human', mainModelUrl: 'blob:main', humanBlob: new Blob(['human']) });
@@ -47,4 +47,19 @@ describe('AI setup lifecycle', () => {
     expect(KataGoClient).not.toHaveBeenCalled();
     expect(revokeModelUrl).toHaveBeenCalledTimes(2);
   });
+  it.each([true, false])('releases retry bytes only after successful human-policy loading: %s', async loaded => {
+    vi.mocked(prepareModels).mockResolvedValue(result());
+    const ai = new AiPlayer();
+    await ai.setup(() => {});
+    const client = vi.mocked(KataGoClient).mock.results[0]!.value;
+    client.analyze.mockResolvedValue({
+      humanPolicy: loaded ? new Float32Array(82) : undefined,
+      ownership: new Float32Array(81), rootScoreLead: 0,
+      moves: [{ order: 0, x: -1, y: -1 }],
+    });
+    await ai.chooseMove({ difficulty: 'easy', board: Array.from({ length: 9 }, () => Array(9).fill(null)), currentPlayer: 'black', moveHistory: [], rules: 'chinese-ogs', isLegal: () => true });
+    expect(revokeModelUrl).toHaveBeenCalledTimes(loaded ? 1 : 0);
+    ai.dispose();
+  });
+
 });
