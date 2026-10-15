@@ -40,8 +40,8 @@ function classifyEngineError(err: unknown): RuleErrorCode {
   const msg = err instanceof Error ? err.message : String(err);
   if (msg.includes('stone_already_placed_here')) return 'occupied';
   if (msg.includes('illegal_self_capture') || msg.includes('move is suicide')) return 'suicide';
-  if (msg.includes('illegal_ko_move') || msg.includes('ko')) return 'ko';
   if (msg.includes('illegal_board_repetition') || msg.includes('superko') || msg.includes('repeating')) return 'superko';
+  if (msg.includes('illegal_ko_move') || msg.includes('ko')) return 'ko';
   if (msg.includes('out of bounds')) return 'out_of_bounds';
   return 'unknown';
 }
@@ -119,7 +119,7 @@ export class GoGame {
 
   /** 落子。非法时抛 IllegalMoveError，棋盘状态不变。 */
   place(x: number, y: number): void {
-    if (x < 0 || y < 0 || x >= this.size || y >= this.size) {
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= this.size || y >= this.size) {
       throw new IllegalMoveError('out_of_bounds', '落点超出棋盘');
     }
     if (this.engine.board[y]![x] !== 0) {
@@ -158,17 +158,17 @@ export class GoGame {
 
   /** 用给定着法序列重置整局。 */
   resetToMoves(moves: readonly GameMove[]): void {
-    const next = moves.map((m) => ({ x: m.x, y: m.y }));
-    this.engine = GoGame.createEngine(this.size);
-    this._repetitionKeys = new Set();
-    this._positionKeys = new Set();
-    this._moves = [];
-    // 空序列时重放循环不执行，必须显式复位行棋方（否则悔棋撤光后残留白方，棋盘冻结）
-    this._currentPlayerCache = 'black';
-    for (const m of next) {
-      if (m.x === -1 && m.y === -1) this.pass();
-      else this.place(m.x, m.y);
+    // 在独立实例中验证全部着法；失败时保留原局面（包括死子标记）。
+    const next = new GoGame(this.size);
+    for (const m of moves) {
+      if (m.x === -1 && m.y === -1) next.pass();
+      else next.place(m.x, m.y);
     }
+    this.engine = next.engine;
+    this._moves = next._moves;
+    this._repetitionKeys = next._repetitionKeys;
+    this._positionKeys = next._positionKeys;
+    this._currentPlayerCache = next._currentPlayerCache;
   }
 
   /** 供 KataGo 的 NN 特征层：board[y][x] → 'black' | 'white' | null。 */
@@ -289,10 +289,11 @@ export class GoGame {
 
   /** 导出 SGF（GM[1] 围棋；应用中国规则与贴目）。 */
   toSGF(meta: { whiteName?: string; blackName?: string; result?: string; date?: string } = {}): string {
+    const escape = (value: string) => value.replace(/\\/g, '\\\\').replace(/\]/g, '\\]').replace(/\r\n|[\r\n\t]/g, ' ');
     const coord = (v: number) => (v < 0 ? '' : String.fromCharCode(97 + v));
-    let sgf = `(;GM[1]FF[4]CA[UTF-8]AP[YiQi]SZ[${this.size}]KM[${KOMI}]RU[Chinese]PB[${meta.blackName || '黑方'}]PW[${meta.whiteName || '白方'}]`;
-    if (meta.date) sgf += `DT[${meta.date}]`;
-    if (meta.result) sgf += `RE[${meta.result}]`;
+    let sgf = `(;GM[1]FF[4]CA[UTF-8]AP[YiQi]SZ[${this.size}]KM[${KOMI}]RU[Chinese]PB[${escape(meta.blackName || '黑方')}]PW[${escape(meta.whiteName || '白方')}]`;
+    if (meta.date) sgf += `DT[${escape(meta.date)}]`;
+    if (meta.result) sgf += `RE[${escape(meta.result)}]`;
     sgf += '\n';
     for (let i = 0; i < this._moves.length; i++) {
       const m = this._moves[i]!;
