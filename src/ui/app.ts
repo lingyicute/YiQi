@@ -8,7 +8,7 @@ import { GoGame, IllegalMoveError, KOMI, type ScoreSummary } from '../core/rules
 import { AiPlayer, DIFFICULTY_LABEL, DIFFICULTY_RANK_LABEL, type Difficulty } from '../ai/aiPlayer';
 import { BoardRenderer, BLACK, WHITE } from './board';
 import { playStoneSound, playWinSound, triggerHaptic } from './sounds';
-import { LS, ACCENTS, emptyRecords, migrateRecords, type Records, type SessionSave, type Settings, DEFAULT_SETTINGS } from './settings';
+import { LS, ACCENTS, emptyRecords, migrateRecords, type Records, type SessionSave, type Settings, normalizeSettings, parseSession } from './settings';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -36,7 +36,7 @@ const now = (): number => performance.now();
 type Phase = 'play' | 'scoring';
 
 class App {
-  settings: Settings = { ...DEFAULT_SETTINGS, ...LS.get<Partial<Settings>>('settings', {}) };
+  settings: Settings = normalizeSettings(LS.get<unknown>('settings', null));
   records: Records = migrateRecords(LS.get<unknown>('records', null));
   game: GoGame;
   renderer: BoardRenderer;
@@ -48,6 +48,7 @@ class App {
   recorded = false;
   aiThinking = false;
   private aiToken = 0;
+  private scoringRevision = 0;
   private timerId: number | null = null;
   private timerRunning = false;
   elapsed = 0;
@@ -173,10 +174,12 @@ class App {
   newGame(opts: { keepTimer?: boolean } = {}): void {
     this.ai.cancel();
     this.aiToken++;
+    this.scoringRevision++;
     this.aiThinking = false;
     this.game = new GoGame(this.settings.boardSize);
     this.over = false;
     this.resultText = null;
+    this.resultSGF = undefined;
     this.resultWinner = 'tie';
     this.phase = 'play';
     this.recorded = false;
@@ -186,6 +189,8 @@ class App {
     this.renderer.state.territory = null;
     this.renderer.state.removedPoints = new Set();
     this.renderer.cursor = { x: 0, y: 0 };
+    this.renderer.hover = null;
+    this.renderer.kbdCursor = false;
     if (!opts.keepTimer) {
       this.stopTimer();
       this.elapsed = 0;
@@ -193,12 +198,14 @@ class App {
     }
     this.lastAnalyzedBoards = { cur: null, prev: null, prev2: null };
     LS.set('session', null);
+    this.updateScoringUI();
     this.updateHUD();
     this.renderer.scheduleDraw();
     void this.maybeAI();
   }
 
   resultText: string | null = null;
+  private resultSGF: string | undefined;
   resultWinner: 'black' | 'white' | 'tie' = 'tie';
 
   /** 渲染器棋盘与逻辑棋盘重新指向：GoGame 的 undo/resetToMoves 会整体重建引擎并更换 board 数组引用。 */
@@ -266,6 +273,7 @@ class App {
       else this.game.place(x, y);
     } catch (err) {
       if (err instanceof IllegalMoveError) {
+        this.syncBoard();
         this.toast(illegalMessage(err.code));
         this.renderer.hover = null;
         this.renderer.scheduleDraw();
@@ -292,7 +300,7 @@ class App {
   /* ================= AI ================= */
 
   async maybeAI(): Promise<void> {
-    if (this.over || this.phase !== 'play' || this.mode === 'pvp') return;
+    if (this.over || this.phase !== 'play' || this.mode === 'pvp' || this.aiThinking) return;
     const toMove = this.game.playerToMove === 'black' ? BLACK : WHITE;
     if (toMove === this.humanColor) return;
     if (!this.ai.ready) {
@@ -351,7 +359,8 @@ class App {
 
   /* ================= 终局计分 ================= */
 
-  private enterScoring(): void {
+  private enterScoring(autoMark = true): void {
+    this.scoringRevision++;
     this.phase = 'scoring';
     this.stopTimer();
     this.ai.cancel();
@@ -359,7 +368,7 @@ class App {
     this.updateScoringUI();
     this.updateHUD();
     this.renderer.scheduleDraw();
-    if (this.mode !== 'pvp' && this.ai.ready) void this.autoMarkDead();
+    if (autoMark && this.mode !== 'pvp' && this.ai.ready) void this.autoMarkDead();
     this.toast('双方连续停一手，进入计分');
   }
 
@@ -380,6 +389,8 @@ class App {
   }
 
   private async autoMarkDead(): Promise<void> {
+    const game = this.game;
+    const revision = this.scoringRevision;
     const ownership = await this.ai.finalOwnership({
       board: snapToNN(this.game),
       currentPlayer: this.game.playerToMove,
@@ -387,7 +398,7 @@ class App {
       repetitionHistory: this.game.repetitionHistory(),
       rules: 'chinese-ogs',
     });
-    if (!ownership || this.phase !== 'scoring') return;
+    if (!ownership || this.phase !== 'scoring' || this.over || game !== this.game || revision !== this.scoringRevision) return;
     const n = this.game.size;
     // 按棋串多数票判死活，然后整组标记
     const visited = new Set<number>();
@@ -410,11 +421,14 @@ class App {
     }
     if (this.phase === 'scoring') {
       this.refreshScore();
+      this.saveSession();
       this.toast('AI 已按形势判断标记死子，可点击棋子修改');
     }
   }
 
   private exitScoring(): void {
+    this.scoringRevision++;
+    this.ai.cancel();
     this.phase = 'play';
     this.game.clearRemoved();
     this.renderer.state.territory = null;
@@ -429,6 +443,8 @@ class App {
   resumeFromScoring(): void {
     if (this.phase !== 'scoring') return;
     this.exitScoring();
+    this.saveSession();
+    void this.maybeAI();
     this.toast('已回到对局，继续落子');
   }
 
@@ -436,9 +452,11 @@ class App {
   toggleDeadAt(x: number, y: number): void {
     if (this.phase !== 'scoring' || this.over) return;
     if (!this.game.board[y]![x]) return;
+    this.scoringRevision++; // 手工判断优先于尚未返回的 AI 结果
     this.game.setGroupRemoved(x, y, !this.game.isRemoved(x, y));
     triggerHaptic('move');
     this.refreshScore();
+    this.saveSession();
   }
 
   saveSettings(): void {
@@ -459,6 +477,8 @@ class App {
 
   confirmScore(): void {
     if (this.phase !== 'scoring') return;
+    this.scoringRevision++;
+    this.ai.cancel();
     const s = this.game.score();
     const diff = s.black - s.white;
     let winner: 'black' | 'white' | 'tie' = 'tie';
@@ -469,6 +489,7 @@ class App {
     this.phase = 'play';
     this.resultText = text;
     this.resultWinner = winner;
+    this.resultSGF = diff === 0 ? '0' : `${diff > 0 ? 'B' : 'W'}+${trimNum(Math.abs(diff))}`;
     this.renderer.state.territory = null;
     this.updateScoringUI();
     this.recordResult(winner);
@@ -479,11 +500,11 @@ class App {
     this.updateHUD();
     this.saveSession();
     this.renderer.scheduleDraw();
-    setTimeout(() => this.showGameOver(), 650);
+    this.scheduleGameOver(650);
   }
 
   private recordResult(winner: 'black' | 'white' | 'tie'): void {
-    if (this.mode === 'pvp' || this.recorded) return;
+    if (this.mode === 'pvp' || this.recorded || winner === 'tie') return;
     const diff = MODE_TO_DIFF[this.mode] || 'hard';
     const r = this.records[diff] || { w: 0, l: 0 };
     const humanWon = (winner === 'black' ? BLACK : WHITE) === this.humanColor;
@@ -513,13 +534,16 @@ class App {
       }
       this.over = false;
       this.resultText = null;
+      this.resultSGF = undefined;
       this.startTimer();
     }
     const n = this.mode === 'pvp' ? 1 : Math.min(2, this.game.moveNumber);
     this.ai.cancel();
     this.aiToken++;
+    this.scoringRevision++;
     this.game.undo(n);
     this.syncBoard();
+    this.renderer.state.removedPoints = new Set();
     this.snapshotBoards();
     this.aiThinking = false;
     this.renderer.state.lastMove = null;
@@ -563,11 +587,14 @@ class App {
     this.phase = 'play';
     this.resultWinner = this.resignLoserIsBlack() ? 'white' : 'black';
     this.resultText = this.resultWinner === 'black' ? '黑中盘胜' : '白中盘胜';
+    this.resultSGF = this.resultWinner === 'black' ? 'B+R' : 'W+R';
+    this.stopTimer();
+    this.scoringRevision++;
     this.recordResult(this.resultWinner);
     this.updateHUD();
     this.saveSession();
     this.renderer.scheduleDraw();
-    setTimeout(() => this.showGameOver(), 400);
+    this.scheduleGameOver(400);
   }
 
   /* ================= 存档 ================= */
@@ -584,20 +611,15 @@ class App {
       moves: this.game.moves.map((m) => ({ x: m.x, y: m.y })),
       elapsed: this.elapsed,
       over: this.over,
+      phase: this.phase,
+      removed: [...this.game.removedPoints()],
     };
     LS.set('session', save);
   }
 
   restoreSession(): void {
-    const ses = LS.get<SessionSave | null>('session', null);
-    if (!ses || !Array.isArray(ses.moves) || !ses.moves.length || ses.over) return;
-    if (!(ses.mode in MODE_LABEL) || ![9, 13, 19].includes(ses.size)) return;
-    const coordOK = ses.moves.every((m) => Number.isInteger(m.x) && Number.isInteger(m.y)
-      && (m.x === -1) === (m.y === -1) && (m.x === -1 || (m.x >= 0 && m.x < ses.size && m.y >= 0 && m.y < ses.size)));
-    if (!coordOK) {
-      LS.set('session', null);
-      return;
-    }
+    const ses = parseSession(LS.get<unknown>('session', null));
+    if (!ses || ses.over) return;
     this.settings.mode = ses.mode;
     this.settings.side = ses.side;
     this.settings.boardSize = ses.size;
@@ -616,15 +638,22 @@ class App {
     this.renderer.state.board = this.game.board;
     this.snapshotBoards();
     this.renderer.fitBoard();
-    this.elapsed = Math.max(0, ses.elapsed | 0);
+    this.elapsed = ses.elapsed;
     $('timer').textContent = fmtTime(this.elapsed);
     // 恢复各选项 UI
     document.querySelectorAll('#modes .chip').forEach((c) => c.classList.toggle('sel', (c as HTMLElement).dataset.mode === this.mode));
     document.querySelectorAll('#sides .chip').forEach((c) => c.classList.toggle('sel', (c as HTMLElement).dataset.side === ses.side));
+    $('sides').style.display = this.mode === 'pvp' ? 'none' : 'flex';
+    const scoring = ses.phase === 'scoring' || (ses.phase === undefined && this.game.consecutivePasses >= 2);
+    if (scoring) {
+      for (const point of ses.removed ?? []) this.game.setGroupRemoved(point % ses.size, Math.floor(point / ses.size), true);
+      this.enterScoring(false);
+    } else {
+      this.startTimer();
+      void this.maybeAI();
+    }
     this.updateHUD();
     this.renderer.scheduleDraw();
-    this.startTimer();
-    void this.maybeAI();
   }
 
   /* ================= 下载与 AI 状态 ================= */
@@ -674,10 +703,12 @@ class App {
 
   dialogOpen = false;
   private dialogCloseTimer: number | null = null;
+  private dialogRevision = 0;
 
   /* ================= 对话框 ================= */
 
   openDialog(html: string): void {
+    this.dialogRevision++;
     if (this.dialogCloseTimer !== null) {
       window.clearTimeout(this.dialogCloseTimer);
       this.dialogCloseTimer = null;
@@ -693,6 +724,7 @@ class App {
   closeDialog(): void {
     const scrim = $('scrim');
     if (scrim.hidden || this.dialogCloseTimer !== null) return;
+    this.dialogRevision++;
     this.dialogOpen = false;
     $('btnPalette').classList.remove('active');
     // 播放收起动画后再隐藏（与 up/fade 进场对称）
@@ -705,6 +737,14 @@ class App {
   }
 
   /* ================= 终局 / 记录 / 规则 对话框 ================= */
+
+  private scheduleGameOver(delay: number): void {
+    const game = this.game;
+    const revision = this.scoringRevision;
+    setTimeout(() => {
+      if (this.over && this.game === game && this.scoringRevision === revision) this.showGameOver();
+    }, delay);
+  }
 
   showGameOver(): void {
     const meta = `用时 ${fmtTime(this.elapsed)} · 共 ${this.game.moveNumber} 手`;
@@ -863,7 +903,10 @@ class App {
   }
 
   async startDownload(): Promise<void> {
+    const revision = this.dialogRevision;
     const prog = $('dlProgress');
+    if (!prog) return;
+    const percent = $('dlPercent'), speedLabel = $('dlSpeed'), bytes = $('dlBytes'), fill = $('dlBarFill');
     const btn = $('btnStartDl');
     prog.style.display = 'block';
     if (btn) { btn.style.display = 'none'; }
@@ -872,17 +915,17 @@ class App {
     try {
       await this.ai.setup((received, total, speed) => {
         const pct = Math.min(99, Math.floor((received / total) * 100));
-        $('dlPercent').textContent = pct + '%';
-        $('dlSpeed').textContent = fmtSpeed(speed);
-        $('dlBytes').textContent = `${(received / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(0)} MB`;
-        ($('dlBarFill') as HTMLElement).style.width = pct + '%';
+        percent.textContent = pct + '%';
+        speedLabel.textContent = fmtSpeed(speed);
+        bytes.textContent = `${(received / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(0)} MB`;
+        fill.style.width = pct + '%';
       });
       // 就绪：提示并关闭
-      $('dlPercent').textContent = '100%';
-      $('dlSpeed').textContent = '';
-      $('dlBytes').textContent = '正在初始化 AI 引擎…';
+      percent.textContent = '100%';
+      speedLabel.textContent = '';
+      bytes.textContent = '正在初始化 AI 引擎…';
       await new Promise((r) => setTimeout(r, 120));
-      this.closeDialog();
+      if (this.dialogRevision === revision) this.closeDialog();
       this.updateAILock();
       this.toast('AI 模型已就绪，开始人机对战吧');
       void this.maybeAI();
@@ -890,8 +933,8 @@ class App {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg === 'canceled') return;
       console.error('[yiqi] 模型下载失败', err);
-      $('dlBytes').textContent = '';
-      $('dlSpeed').textContent = '下载失败：' + msg;
+      bytes.textContent = '';
+      speedLabel.textContent = '下载失败：' + msg;
       if (btn) {
         btn.style.display = '';
         btn.textContent = '重试';
@@ -928,7 +971,7 @@ class App {
     }
     const d = new Date();
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const result = this.over && this.resultText ? this.resultText.replace('目', '') : undefined;
+    const result = this.over ? this.resultSGF : undefined;
     const sgf = this.game.toSGF({
       blackName: this.mode === 'pvp' ? '黑方' : (this.humanColor === BLACK ? '你' : `AI（${DIFFICULTY_LABEL[MODE_TO_DIFF[this.mode]]}）`),
       whiteName: this.mode === 'pvp' ? '白方' : (this.humanColor === WHITE ? '你' : `AI（${DIFFICULTY_LABEL[MODE_TO_DIFF[this.mode]]}）`),
@@ -960,6 +1003,7 @@ class App {
     document.querySelectorAll('#modes .chip').forEach((c) => c.classList.toggle('sel', (c as HTMLElement).dataset.mode === this.mode));
     document.querySelectorAll('#sides .chip').forEach((c) => c.classList.toggle('sel', (c as HTMLElement).dataset.side === this.settings.side));
     document.querySelectorAll('#sizes .chip').forEach((c) => c.classList.toggle('sel', Number((c as HTMLElement).dataset.size) === this.settings.boardSize));
+    $('sides').style.display = this.mode === 'pvp' ? 'none' : 'flex';
     this.updateSoundUI();
     this.updateCoordsUI();
     this.updateHUD();

@@ -52,7 +52,8 @@ export function migrateRecords(raw: unknown): Records {
   const add = (k: string, v: unknown) => {
     if (!v || typeof v !== 'object') return;
     const { w, l } = v as { w?: unknown; l?: unknown };
-    if (typeof w !== 'number' || typeof l !== 'number') return;
+    if (!['easy', 'medium', 'hard', 'expert'].includes(k)) return;
+    if (typeof w !== 'number' || typeof l !== 'number' || !Number.isSafeInteger(w) || !Number.isSafeInteger(l) || w < 0 || l < 0) return;
     const r = out[k] || (out[k] = { w: 0, l: 0 });
     r.w += w; r.l += l;
   };
@@ -84,4 +85,50 @@ export type SessionSave = {
   moves: Array<{ x: number; y: number }>;
   elapsed: number;
   over: boolean;
+  /** 可选字段兼容旧版存档；缺失时从末尾两次 PASS 推断。 */
+  phase?: 'play' | 'scoring';
+  removed?: number[];
 };
+
+const MODES = ['ai-easy', 'ai-medium', 'ai-hard', 'ai-expert', 'pvp'];
+
+/** JSON.parse 只保证语法正确，不保证存储对象符合当前 schema。 */
+export function normalizeSettings(raw: unknown): Settings {
+  const out = { ...DEFAULT_SETTINGS };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  const s = raw as Record<string, unknown>;
+  if (s.theme === 'light' || s.theme === 'dark' || s.theme === null) out.theme = s.theme;
+  if (typeof s.accent === 'string' && Object.hasOwn(ACCENTS, s.accent)) out.accent = s.accent;
+  if (typeof s.mode === 'string' && MODES.includes(s.mode)) out.mode = s.mode;
+  if (s.side === 'B' || s.side === 'W') out.side = s.side;
+  if (s.boardSize === 9 || s.boardSize === 13 || s.boardSize === 19) out.boardSize = s.boardSize;
+  if (typeof s.sound === 'boolean') out.sound = s.sound;
+  if (typeof s.coords === 'boolean') out.coords = s.coords;
+  return out;
+}
+
+export function parseSession(raw: unknown): SessionSave | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const s = raw as Record<string, unknown>;
+  if (typeof s.mode !== 'string' || !MODES.includes(s.mode)) return null;
+  if (s.side !== 'B' && s.side !== 'W') return null;
+  if (s.size !== 9 && s.size !== 13 && s.size !== 19) return null;
+  if (typeof s.over !== 'boolean' || !Array.isArray(s.moves) || !s.moves.length) return null;
+  const size = s.size;
+  const moves: SessionSave['moves'] = [];
+  for (const m of s.moves) {
+    if (!m || typeof m !== 'object') return null;
+    const { x, y } = m;
+    if (!Number.isInteger(x) || !Number.isInteger(y)) return null;
+    if (!(x === -1 && y === -1) && !(x >= 0 && x < size && y >= 0 && y < size)) return null;
+    moves.push({ x, y });
+  }
+  if (s.phase !== undefined && s.phase !== 'play' && s.phase !== 'scoring') return null;
+  if (s.removed !== undefined && (!Array.isArray(s.removed) || !s.removed.every(p => Number.isInteger(p) && p >= 0 && p < size * size))) return null;
+  return {
+    mode: s.mode, side: s.side, size, moves, over: s.over,
+    elapsed: typeof s.elapsed === 'number' && Number.isFinite(s.elapsed) ? Math.max(0, Math.floor(s.elapsed)) : 0,
+    phase: s.phase,
+    removed: s.removed as number[] | undefined,
+  };
+}
