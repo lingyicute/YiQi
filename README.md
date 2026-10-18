@@ -53,28 +53,8 @@
 直接访问 **https://yiqi.92li.uk** （Cloudflare Pages 自动部署本仓库）。
 
 - 首次使用人机对战需下载 KataGo 模型（约 103 MB，含 94.5 MB 人类模型），下载后存入浏览器 Cache Storage 长期复用；可选择跳过，只用双人对战。
-- 需要 **WebAssembly**；支持 WebGPU 的浏览器（Chrome/Edge 121+，iOS/iPadOS 26+）会自动启用 WebGPU 后端，否则回退 WASM（多线程需跨域隔离，站点已配置 COOP/COEP）。
-
-本地开发（Node.js 20.19+，建议使用受支持的 LTS 版本）：
-
-```bash
-git clone https://github.com/lingyicute/YiQi.git
-cd YiQi
-npm ci
-npm run copy:tfjs-wasm   # 拷贝 TF.js WASM 运行时到 public/tfjs/
-npm run dev              # http://localhost:5173
-```
-
-开发/预览服务监听 `0.0.0.0`，请仅在可信网络运行。默认保留 Vite 的 Host 校验；反向代理或远程预览需要额外域名时，显式设置，例如 `YIQI_ALLOWED_HOSTS=preview.example.com npm run dev`（逗号分隔，不填写不受信任的域名）。
-
-生产构建与预览：
-
-```bash
-npm run build            # 自动拷贝 WASM，产物在 dist/
-npm run preview          # 本地预览 dist/（带 COOP/COEP 头）
-```
-
-字体：Nebulove 子集位于 `src/fonts/nebulove-subset.woff2`，由 `src/style.css` 的 `@font-face` 引用，构建后使用带哈希的静态资源 URL。**修改界面文案后**请 `pip install fonttools brotli` 并重跑 `npm run subset:font`，否则新增字符会回退到系统字体。
+- 人机对战需要 **WebAssembly**。
+- 支持 WebGPU 的浏览器（Chrome/Edge 121+，iOS/iPadOS 26+）会自动启用 WebGPU 后端，否则回退 WASM（多线程需跨域隔离，站点已配置 COOP/COEP）。
 
 <br>
 
@@ -121,6 +101,29 @@ npm run preview          # 本地预览 dist/（带 COOP/COEP 头）
 
 <br>
 
+## 🎨 本地开发（Node.js 20.19+，建议使用受支持的 LTS 版本）：
+
+```bash
+git clone https://github.com/lingyicute/YiQi.git
+cd YiQi
+npm ci
+npm run copy:tfjs-wasm   # 拷贝 TF.js WASM 运行时到 public/tfjs/
+npm run dev              # http://localhost:5173
+```
+
+开发/预览服务监听 `0.0.0.0`，请仅在可信网络运行。默认保留 Vite 的 Host 校验；反向代理或远程预览需要额外域名时，显式设置，例如 `YIQI_ALLOWED_HOSTS=preview.example.com npm run dev`（逗号分隔，不填写不受信任的域名）。
+
+生产构建与预览：
+
+```bash
+npm run build            # 自动拷贝 WASM，产物在 dist/
+npm run preview          # 本地预览 dist/（带 COOP/COEP 头）
+```
+
+字体：Nebulove 子集位于 `src/fonts/nebulove-subset.woff2`，由 `src/style.css` 的 `@font-face` 引用，构建后使用带哈希的静态资源 URL。**修改界面文案后**请 `pip install fonttools brotli` 并重跑 `npm run subset:font`，否则新增字符会回退到系统字体。
+
+<br>
+
 ## 🧪 测试
 
 ```bash
@@ -145,7 +148,7 @@ npm run test:e2e
 - 依赖：
   - 规则层 [goban-engine](https://github.com/online-go/goban)：Apache-2.0（Online-Go.com）
   - AI 层移植自 [web-katrain](https://github.com/Sir-Teo/web-katrain)：MIT，保留声明见 [web-katrain-MIT.txt](public/licenses/web-katrain-MIT.txt)
-  - [KataGo](https://github.com/lightvector/KataGo) 引擎主体代码：MIT（外部组件另有许可，见 [KataGo LICENSE](public/licenses/KataGo-LICENSE.txt)）；不能把引擎代码许可等同于模型许可。仓库内两个模型的具体来源版本及再分发条件应分别核对下载源说明，不能笼统标注为“非商业授权”。
+  - [KataGo](https://github.com/lightvector/KataGo) 引擎主体代码：MIT（外部组件另有许可，见 [KataGo LICENSE](public/licenses/KataGo-LICENSE.txt)）。
   - TensorFlow.js：Apache-2.0
 
 由 ❤️ 与 KataGo 驱动 · [lingyicute](https://github.com/lingyicute)
