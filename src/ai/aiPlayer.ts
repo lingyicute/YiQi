@@ -44,6 +44,8 @@ export type AIStatus =
   | 'ready'
   | 'failed';
 
+type SetupProgress = (received: number, total: number, speed: number) => void;
+
 export class AiPlayer {
   private client: KataGoClient | null = null;
   private mainModelUrl: string | null = null;
@@ -53,6 +55,8 @@ export class AiPlayer {
   private aborted = 0;
   private setupTask: Promise<void> | null = null;
   private setupGeneration = 0;
+  private progressListeners = new Set<SetupProgress>();
+  private lastProgress: [number, number, number] | null = null;
   status: AIStatus = 'idle';
   lastError: string | null = null;
   /** 最近一次分析的目差（黑方视角），供状态栏显示。 */
@@ -67,18 +71,33 @@ export class AiPlayer {
     return TOTAL_DOWNLOAD_BYTES;
   }
 
-  /** 下载（带进度回调）并初始化引擎。重复调用安全。 */
-  setup(onProgress: (received: number, total: number, speed: number) => void): Promise<void> {
+  /**
+   * 下载（带进度回调）并初始化引擎。重复调用安全：
+   * 进行中的任务由所有调用方共享，后加入者同样收到进度（先回放最近一次进度）。
+   */
+  setup(onProgress: SetupProgress): Promise<void> {
     if (this.ready) return Promise.resolve();
-    if (this.setupTask) return this.setupTask;
+    if (this.setupTask) {
+      this.progressListeners.add(onProgress);
+      if (this.lastProgress) onProgress(...this.lastProgress);
+      return this.setupTask;
+    }
     const generation = ++this.setupGeneration;
-    this.setupTask = this.runSetup(onProgress, generation).finally(() => {
-      if (generation === this.setupGeneration) this.setupTask = null;
+    this.progressListeners = new Set([onProgress]);
+    this.lastProgress = null;
+    this.setupTask = this.runSetup((received, total, speed) => {
+      this.lastProgress = [received, total, speed];
+      for (const listener of this.progressListeners) listener(received, total, speed);
+    }, generation).finally(() => {
+      if (generation !== this.setupGeneration) return;
+      this.setupTask = null;
+      this.progressListeners = new Set();
+      this.lastProgress = null;
     });
     return this.setupTask;
   }
 
-  private async runSetup(onProgress: (received: number, total: number, speed: number) => void, generation: number): Promise<void> {
+  private async runSetup(onProgress: SetupProgress, generation: number): Promise<void> {
     this.releaseModels();
     this.status = 'downloading';
     this.lastError = null;
