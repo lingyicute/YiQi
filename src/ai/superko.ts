@@ -43,9 +43,13 @@ export const positionalKey = (board: BoardState): string => {
   return key;
 };
 
+/** Situational key from an already computed positional key (avoids encoding the board twice). */
+export const situationalKeyFromPositional = (positional: string, playerToMove: Player): string =>
+  `${playerToMove[0]}|${positional}`;
+
 /** Compact key for a board layout together with the side to move. */
 export const situationalKey = (board: BoardState, playerToMove: Player): string =>
-  `${playerToMove[0]}|${positionalKey(board)}`;
+  situationalKeyFromPositional(positionalKey(board), playerToMove);
 
 export const superkoKey = (ko: KoRule, position: SuperkoPosition): string =>
   ko === 'situational'
