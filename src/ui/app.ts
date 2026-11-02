@@ -881,6 +881,12 @@ class App {
       this.toast('AI 模型已就绪');
       return;
     }
+    // 下载仍在后台进行：直接回到进度视图，不要求再点一次「开始下载」
+    if (this.ai.status === 'downloading' || this.ai.status === 'initializing') {
+      this.openDownloadDialog();
+      void this.startDownload();
+      return;
+    }
     // 每次打开都重新实测 WASM/WebGPU 能力（不沿用启动时的缓存结论）
     {
       const { wasmSupported, webgpuAvailable } = await import('../ai/modelFiles');
@@ -909,6 +915,10 @@ class App {
       </div>`);
       return;
     }
+    this.openDownloadDialog();
+  }
+
+  private openDownloadDialog(): void {
     this.openDialog(`
       <div class="dlg-icon">${ICO.chip}</div>
       <div class="dlg-title">下载 AI 模型</div>
@@ -926,30 +936,61 @@ class App {
       </div>`);
   }
 
+  private downloadTask: Promise<void> | null = null;
+  private downloadProgress: [number, number, number] | null = null;
+
+  /** 按 id 取当前对话框中的进度控件（对话框重开后节点会更换，故每次现取）。 */
+  private paintDownload(received: number, total: number, speed: number): void {
+    const percent = document.getElementById('dlPercent'), speedLabel = document.getElementById('dlSpeed');
+    const bytes = document.getElementById('dlBytes'), fill = document.getElementById('dlBarFill');
+    const pct = Math.min(99, Math.floor((received / total) * 100));
+    if (percent) percent.textContent = pct + '%';
+    if (fill) fill.style.width = pct + '%';
+    if (received >= total) {
+      // 字节已下完，进入引擎初始化（耗时阶段）
+      if (speedLabel) speedLabel.textContent = '';
+      if (bytes) bytes.textContent = '正在初始化 AI 引擎…';
+      return;
+    }
+    if (speedLabel) speedLabel.textContent = fmtSpeed(speed);
+    if (bytes) bytes.textContent = `${(received / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(0)} MB`;
+  }
+
   async startDownload(): Promise<void> {
-    const revision = this.dialogRevision;
     const prog = $('dlProgress');
     if (!prog) return;
-    const percent = $('dlPercent'), speedLabel = $('dlSpeed'), bytes = $('dlBytes'), fill = $('dlBarFill');
     const btn = $('btnStartDl');
     prog.style.display = 'block';
     if (btn) { btn.style.display = 'none'; }
     const skipBtn = $('dialog').querySelector('[data-cmd="skipdl"]') as HTMLElement | null;
     if (skipBtn) skipBtn.textContent = '跳过';
+    if (this.downloadTask) {
+      // 已有下载在跑（对话框被关闭后重开）：只把最近进度画到新对话框，完成后的收尾只做一次
+      if (this.downloadProgress) this.paintDownload(...this.downloadProgress);
+      return;
+    }
+    this.downloadTask = this.runDownload().finally(() => {
+      this.downloadTask = null;
+      this.downloadProgress = null;
+    });
+    await this.downloadTask;
+  }
+
+  private async runDownload(): Promise<void> {
     try {
       await this.ai.setup((received, total, speed) => {
-        const pct = Math.min(99, Math.floor((received / total) * 100));
-        percent.textContent = pct + '%';
-        speedLabel.textContent = fmtSpeed(speed);
-        bytes.textContent = `${(received / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(0)} MB`;
-        fill.style.width = pct + '%';
+        this.downloadProgress = [received, total, speed];
+        this.paintDownload(received, total, speed);
       });
       // 就绪：提示并关闭
-      percent.textContent = '100%';
-      speedLabel.textContent = '';
-      bytes.textContent = '正在初始化 AI 引擎…';
+      const percent = document.getElementById('dlPercent'), speedLabel = document.getElementById('dlSpeed');
+      const bytes = document.getElementById('dlBytes'), fill = document.getElementById('dlBarFill');
+      if (percent) percent.textContent = '100%';
+      if (fill) fill.style.width = '100%';
+      if (speedLabel) speedLabel.textContent = '';
+      if (bytes) bytes.textContent = '';
       await new Promise((r) => setTimeout(r, 120));
-      if (this.dialogRevision === revision) this.closeDialog();
+      if (document.getElementById('dlProgress')) this.closeDialog();
       this.updateAILock();
       this.toast('AI 模型已就绪，开始人机对战吧');
       void this.maybeAI();
@@ -957,8 +998,11 @@ class App {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg === 'canceled') return;
       console.error('[yiqi] 模型下载失败', err);
-      bytes.textContent = '';
-      speedLabel.textContent = '下载失败：' + msg;
+      const bytes = document.getElementById('dlBytes'), speedLabel = document.getElementById('dlSpeed');
+      const btn = document.getElementById('btnStartDl');
+      if (!speedLabel) this.toast('模型下载失败：' + msg);
+      if (bytes) bytes.textContent = '';
+      if (speedLabel) speedLabel.textContent = '下载失败：' + msg;
       if (btn) {
         btn.style.display = '';
         btn.textContent = '重试';
