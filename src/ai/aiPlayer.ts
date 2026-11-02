@@ -115,6 +115,8 @@ export class AiPlayer {
       this.mainModelUrl = mainModelUrl;
       this.humanBlob = humanBlob;
       this.status = 'initializing';
+      // 字节已齐、转入引擎初始化：通知所有监听者（含之后加入者的回放）
+      onProgress(TOTAL_DOWNLOAD_BYTES, TOTAL_DOWNLOAD_BYTES, 0);
       this.client = new KataGoClient();
       const init: InitResult = await this.client.init(mainModelUrl, backend);
       if (generation !== this.setupGeneration) throw new Error('canceled');

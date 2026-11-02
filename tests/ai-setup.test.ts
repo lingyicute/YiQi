@@ -53,6 +53,24 @@ describe('AI setup lifecycle', () => {
     await Promise.all([first, second]);
     ai.dispose();
   });
+  it('reports the initializing stage to every listener once the bytes are in', async () => {
+    let initDone!: (r: { backend: string }) => void;
+    vi.mocked(prepareModels).mockResolvedValue(result());
+    vi.mocked(KataGoClient).mockImplementationOnce(function () {
+      return { init: vi.fn(() => new Promise(r => { initDone = r as typeof initDone; })), dispose: vi.fn(), cancel: vi.fn(), analyze: vi.fn() };
+    } as never);
+    const ai = new AiPlayer();
+    const early = vi.fn();
+    const late = vi.fn();
+    const first = ai.setup(early);
+    await vi.waitFor(() => expect(ai.status).toBe('initializing'));
+    const second = ai.setup(late);
+    expect(early).toHaveBeenLastCalledWith(10, 10, 0);
+    expect(late).toHaveBeenCalledWith(10, 10, 0);
+    initDone({ backend: 'wasm' });
+    await Promise.all([first, second]);
+    ai.dispose();
+  });
   it('dispose during download cannot resurrect a ready worker or leak URLs', async () => {
     let release!: (r: ReturnType<typeof result>) => void;
     vi.mocked(prepareModels).mockImplementation(() => new Promise(r => { release = r; }));
