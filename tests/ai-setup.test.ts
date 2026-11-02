@@ -33,6 +33,26 @@ describe('AI setup lifecycle', () => {
     expect(revokeModelUrl).toHaveBeenCalledWith('blob:human');
     expect(revokeModelUrl).toHaveBeenCalledWith('blob:main');
   });
+  it('late callers receive progress of the setup already running', async () => {
+    let release!: (r: ReturnType<typeof result>) => void;
+    let report!: (p: { receivedBytes: number; totalBytes: number; bytesPerSecond: number }) => void;
+    vi.mocked(prepareModels).mockImplementation((cb) => new Promise(r => { report = cb; release = r; }));
+    const ai = new AiPlayer();
+    const early = vi.fn();
+    const late = vi.fn();
+    const first = ai.setup(early);
+    await Promise.resolve();
+    await Promise.resolve();
+    report({ receivedBytes: 2, totalBytes: 10, bytesPerSecond: 1 });
+    const second = ai.setup(late);
+    expect(late).toHaveBeenCalledWith(2, 10, 1);
+    report({ receivedBytes: 5, totalBytes: 10, bytesPerSecond: 2 });
+    expect(early).toHaveBeenLastCalledWith(5, 10, 2);
+    expect(late).toHaveBeenLastCalledWith(5, 10, 2);
+    release(result());
+    await Promise.all([first, second]);
+    ai.dispose();
+  });
   it('dispose during download cannot resurrect a ready worker or leak URLs', async () => {
     let release!: (r: ReturnType<typeof result>) => void;
     vi.mocked(prepareModels).mockImplementation(() => new Promise(r => { release = r; }));
