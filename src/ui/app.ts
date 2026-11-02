@@ -322,10 +322,7 @@ class App {
     this.updateHUD();
     try {
       const snap = this.lastAnalyzedBoards;
-      // 合法性探针：独立棋盘试下+撤销，避免主棋盘被污染
-      const probe = new GoGame(this.game.size);
-      probe.resetToMoves(this.game.moves);
-      const legalMoves = new Map<number, boolean>();
+      const game = this.game;
       const mv = await this.ai.chooseMove({
         difficulty: MODE_TO_DIFF[this.mode] || 'hard',
         board: snapToNN(this.game),
@@ -335,22 +332,7 @@ class App {
         moveHistory: this.game.nnMoveHistory(),
         repetitionHistory: this.game.repetitionHistory(),
         rules: 'chinese-ogs',
-        isLegal: (x, y) => {
-          if (x < 0 || y < 0) return true;
-          const key = y * probe.size + x;
-          const known = legalMoves.get(key);
-          if (known !== undefined) return known;
-          if (probe.board[y]?.[x] !== 0) return false;
-          try {
-            probe.place(x, y);
-          } catch {
-            legalMoves.set(key, false);
-            return false;
-          }
-          probe.undo(1);
-          legalMoves.set(key, true);
-          return true;
-        },
+        isLegal: (x, y) => game.isLegal(x, y),
       });
       if (token !== this.aiToken || this.over || this.phase !== 'play') return;
       this.aiThinking = false;

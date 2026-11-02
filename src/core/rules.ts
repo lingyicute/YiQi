@@ -142,6 +142,65 @@ export class GoGame {
     this.recordRepetition(posKey);
   }
 
+  /**
+   * 无副作用的合法性探测：判定条件与 place() 一致（占点、自杀、全局同形），
+   * 不改动引擎，也不需要「试下再撤回」的整局重放。停一手恒合法。
+   */
+  isLegal(x: number, y: number): boolean {
+    if (x === -1 && y === -1) return true;
+    const n = this.size;
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= n || y >= n) return false;
+    const board = this.engine.board;
+    if (board[y]![x] !== 0) return false;
+    const me = this._currentPlayerCache === 'black' ? 1 : 2;
+    const cells = new Uint8Array(n * n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) cells[j * n + i] = board[j]![i]!;
+    const at = y * n + x;
+    cells[at] = me;
+
+    const adjacent = (idx: number): number[] => {
+      const px = idx % n, py = (idx - px) / n;
+      const out: number[] = [];
+      if (px > 0) out.push(idx - 1);
+      if (px < n - 1) out.push(idx + 1);
+      if (py > 0) out.push(idx - n);
+      if (py < n - 1) out.push(idx + n);
+      return out;
+    };
+    const flood = (start: number): { stones: number[]; liberty: boolean } => {
+      const color = cells[start]!;
+      const stones = [start];
+      const seen = new Set<number>(stones);
+      let liberty = false;
+      for (let k = 0; k < stones.length; k++) {
+        for (const nb of adjacent(stones[k]!)) {
+          const v = cells[nb]!;
+          if (v === 0) liberty = true;
+          else if (v === color && !seen.has(nb)) { seen.add(nb); stones.push(nb); }
+        }
+      }
+      return { stones, liberty };
+    };
+
+    for (const nb of adjacent(at)) {
+      if (cells[nb] !== 3 - me) continue; // 已被提走的对方棋串此时为 0，自然跳过
+      const group = flood(nb);
+      if (!group.liberty) for (const idx of group.stones) cells[idx] = 0;
+    }
+    if (!flood(at).liberty) return false;
+
+    const next: NNBoardState = [];
+    for (let j = 0; j < n; j++) {
+      const row: (Player | null)[] = [];
+      for (let i = 0; i < n; i++) {
+        const v = cells[j * n + i];
+        row.push(v === 1 ? 'black' : v === 2 ? 'white' : null);
+      }
+      next.push(row);
+    }
+    return !this._positionKeys.has(positionalKey(next));
+  }
+
   /** 停一手。 */
   pass(): void {
     this.engine.place(-1, -1);
