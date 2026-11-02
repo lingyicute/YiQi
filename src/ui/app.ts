@@ -537,10 +537,19 @@ class App {
         }
         this.recorded = false;
       }
+      const resigned = this.resultSGF?.endsWith('+R') ?? false;
       this.over = false;
       this.resultText = null;
       this.resultSGF = undefined;
       this.startTimer();
+      if (resigned) {
+        // 认输不产生着法：悔棋只撤销认输，棋盘保持不变
+        this.updateHUD();
+        this.saveSession();
+        this.renderer.scheduleDraw();
+        void this.maybeAI();
+        return;
+      }
     }
     // 人机模式回到「轮到你」：轮到你时撤销 AI 的上一手与你的上一手，
     // 轮到 AI（AI 出错或模型未就绪而停住）时只需撤销你的上一手。
