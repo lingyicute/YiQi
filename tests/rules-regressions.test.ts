@@ -43,4 +43,58 @@ describe('规则边界与导出回归', () => {
     expect(sgf).toContain('PB[A\\\\B\\];W[aa\\] C]');
     expect(sgf).toContain('PW[白\\]方]');
   });
+  it('isLegal 识别自杀与打劫回提，且不改变棋局', () => {
+    const suicide = new GoGame(9);
+    suicide.place(1, 0);
+    suicide.place(5, 5);
+    suicide.place(0, 1);
+    expect(suicide.isLegal(0, 0)).toBe(false); // 白在黑角自杀
+    expect(suicide.isLegal(1, 0)).toBe(false); // 已有棋子
+    expect(suicide.isLegal(-1, -1)).toBe(true);
+    expect(suicide.isLegal(9, 0)).toBe(false);
+    suicide.pass();
+    expect(suicide.isLegal(0, 0)).toBe(true); // 同一点对黑方合法
+    expect(suicide.moveNumber).toBe(4);
+
+    const ko = new GoGame(9);
+    for (const [x, y] of [[2, 0], [1, 0], [2, 2], [1, 2], [3, 1], [2, 1], [8, 8], [0, 1]] as const) ko.place(x, y);
+    ko.place(1, 1); // 黑提白 (2,1)
+    const board = ko.board.map((row) => row.slice());
+    const keys = ko.repetitionHistory();
+    expect(ko.isLegal(2, 1)).toBe(false); // 白立即回提：全局同形
+    expect(() => ko.place(2, 1)).toThrow(IllegalMoveError);
+    expect(ko.board).toEqual(board);
+    expect(ko.repetitionHistory()).toEqual(keys);
+    ko.place(7, 7); // 白寻劫后，黑方不受影响
+    expect(ko.isLegal(0, 0)).toBe(true);
+  });
+
+  it.each([1, 7, 2026])('isLegal 与 place 的判定一致（9 路随机对局，seed %i）', (seed) => {
+    const game = new GoGame(9);
+    let state = seed;
+    const random = () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state; };
+    let illegal = 0;
+    for (let step = 0; step < 90; step++) {
+      if (step % 4 === 0) {
+        const before = game.board.map((row) => row.slice());
+        for (let y = 0; y < 9; y++) {
+          for (let x = 0; x < 9; x++) {
+            if (game.board[y]![x] !== 0) { expect(game.isLegal(x, y)).toBe(false); continue; }
+            const trial = new GoGame(9);
+            trial.resetToMoves(game.moves);
+            let accepted = true;
+            try { trial.place(x, y); } catch (err) { accepted = false; expect(err).toBeInstanceOf(IllegalMoveError); }
+            if (!accepted) illegal++;
+            expect(game.isLegal(x, y), `step ${step} (${x},${y})`).toBe(accepted);
+          }
+        }
+        expect(game.board).toEqual(before);
+      }
+      const move = random() % 82;
+      try {
+        if (move === 81) game.pass(); else game.place(move % 9, Math.floor(move / 9));
+      } catch { /* 非法着法：忽略 */ }
+    }
+    expect(illegal).toBeGreaterThan(0);
+  });
 });
