@@ -253,6 +253,7 @@ window.addEventListener('orientationchange', () => setTimeout(() => app.renderer
 window.addEventListener('beforeunload', () => app.saveSession());
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) app.saveSession();
+  else app.syncTimer();
 });
 
 app.init();

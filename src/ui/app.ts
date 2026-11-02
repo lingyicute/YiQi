@@ -51,6 +51,8 @@ class App {
   private scoringRevision = 0;
   private timerId: number | null = null;
   private timerRunning = false;
+  private timerOrigin = 0;
+  private timerStartedAt = 0;
   elapsed = 0;
 
   ai = new AiPlayer();
@@ -157,13 +159,22 @@ class App {
   startTimer(): void {
     if (this.timerRunning) return;
     this.timerRunning = true;
-    this.timerId = window.setInterval(() => {
-      this.elapsed++;
-      $('timer').textContent = fmtTime(this.elapsed);
-    }, 1000);
+    // 以时钟差值计时：后台标签页会限流 setInterval，逐次 ++ 会少算用时
+    this.timerOrigin = this.elapsed;
+    this.timerStartedAt = now();
+    this.timerId = window.setInterval(() => this.syncTimer(), 1000);
+  }
+
+  /** 按时钟刷新已用秒数与计时显示（计时中才有变化）。 */
+  syncTimer(): void {
+    if (this.timerRunning) {
+      this.elapsed = this.timerOrigin + Math.floor((now() - this.timerStartedAt) / 1000);
+    }
+    $('timer').textContent = fmtTime(this.elapsed);
   }
 
   stopTimer(): void {
+    if (this.timerRunning) this.syncTimer();
     this.timerRunning = false;
     if (this.timerId) clearInterval(this.timerId);
     this.timerId = null;
@@ -594,6 +605,7 @@ class App {
   /* ================= 存档 ================= */
 
   saveSession(): void {
+    this.syncTimer();
     if (!this.game.moveNumber) {
       LS.set('session', null);
       return;
