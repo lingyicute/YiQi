@@ -559,6 +559,12 @@ class App {
     this.aiToken++;
     this.scoringRevision++;
     this.game.undo(n);
+    if (this.game.moveNumber === 0) {
+      // 回到空盘：与新局一致，下一手才开始计时
+      this.stopTimer();
+      this.elapsed = 0;
+      $('timer').textContent = '00:00';
+    }
     this.syncBoard();
     this.renderer.state.removedPoints = new Set();
     this.snapshotBoards();
