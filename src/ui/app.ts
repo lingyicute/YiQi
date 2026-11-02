@@ -542,7 +542,10 @@ class App {
       this.resultSGF = undefined;
       this.startTimer();
     }
-    const n = this.mode === 'pvp' ? 1 : Math.min(2, this.game.moveNumber);
+    // 人机模式回到「轮到你」：轮到你时撤销 AI 的上一手与你的上一手，
+    // 轮到 AI（AI 出错或模型未就绪而停住）时只需撤销你的上一手。
+    const humanToMove = (this.game.playerToMove === 'black' ? BLACK : WHITE) === this.humanColor;
+    const n = this.mode === 'pvp' ? 1 : Math.min(humanToMove ? 2 : 1, this.game.moveNumber);
     this.ai.cancel();
     this.aiToken++;
     this.scoringRevision++;
