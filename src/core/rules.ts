@@ -10,7 +10,7 @@
  */
 import { GobanEngine } from 'goban-engine';
 import type { JGOFMove } from 'goban-engine/build/engine/formats/JGOF';
-import { positionalKey, situationalKey } from '../ai/superko';
+import { positionalKey, situationalKeyFromPositional } from '../ai/superko';
 import type { BoardState as NNBoardState, Move as NNMove, Player } from '../ai/types';
 
 export type Point = { x: number; y: number };
@@ -265,9 +265,9 @@ export class GoGame {
 
   private recordRepetition(posKey?: string): void {
     this._currentPlayerCache = this._moves.length % 2 === 0 ? 'black' : 'white';
-    const board = this.nnBoard();
-    this._repetitionKeys.add(situationalKey(board, this._currentPlayerCache));
-    this._positionKeys.add(posKey ?? positionalKey(board));
+    const key = posKey ?? positionalKey(this.nnBoard());
+    this._repetitionKeys.add(situationalKeyFromPositional(key, this._currentPlayerCache));
+    this._positionKeys.add(key);
   }
 
   /** 某点所在棋串（同色连通块）。 */
