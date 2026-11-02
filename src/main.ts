@@ -201,6 +201,8 @@ document.addEventListener('keydown', (e) => {
     $('btnMenu').focus();
     return;
   }
+  // 浏览器/系统快捷键（Ctrl+R 刷新、Ctrl+P 打印等）不应触发游戏操作
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
   const active = document.activeElement as HTMLElement | null;
   if (active && (active.isContentEditable || active.closest('button,a,input,textarea,select,[role="button"],[role="menuitem"],[contenteditable="true"]'))) return;
   const tag = (active && active.tagName) || '';
@@ -222,6 +224,8 @@ document.addEventListener('keydown', (e) => {
     app.renderer.scheduleDraw();
     return;
   }
+  // 按住不放只对光标移动有意义；停一手、悔棋、重开不能被连发
+  if (e.repeat) return;
   if (k === 'Enter' || k === ' ') {
     const c = { x: app.renderer.cursor.x, y: app.renderer.cursor.y };
     if (app.phase === 'scoring') { app.toggleDeadAt(c.x, c.y); return; }
