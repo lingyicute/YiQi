@@ -147,6 +147,7 @@ canvas.addEventListener('pointerdown', (e) => {
     touchTap = touchTap ? null : { x0: e.clientX, y0: e.clientY, id: e.pointerId };
     return;
   }
+  if (e.button !== 0) return; // 右键/中键不落子
   e.preventDefault();
   canvas.focus({ preventScroll: true });
   tryPlaceFromEvent(e);
