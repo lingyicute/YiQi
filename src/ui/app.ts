@@ -396,7 +396,7 @@ class App {
     const s = this.game.score();
     const el = $('scoreInfo');
     if (el) {
-      el.textContent = `黑 ${trimNum(s.black)} 子 · 白 ${trimNum(s.white)} 子`;
+      el.textContent = `黑 ${trimNum(s.black)} 子 · 白 ${trimNum(s.white - KOMI)} 子 · 贴目 ${trimNum(KOMI)}`;
     }
   }
 
