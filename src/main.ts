@@ -162,7 +162,9 @@ canvas.addEventListener('pointermove', (e) => {
     return;
   }
   const c = app.renderer.eventCell(e);
-  const changed = JSON.stringify(c) !== JSON.stringify(app.renderer.hover);
+  const h = app.renderer.hover;
+  // 指针移动触发频繁，逐字段比较即可，无需每次分配两个 JSON 字符串
+  const changed = (c === null) !== (h === null) || (c !== null && h !== null && (c.x !== h.x || c.y !== h.y));
   app.renderer.hover = c;
   if (changed) app.renderer.scheduleDraw();
 });

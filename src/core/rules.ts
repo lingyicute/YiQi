@@ -182,23 +182,22 @@ export class GoGame {
       return { stones, liberty };
     };
 
+    let captured = false;
     for (const nb of adjacent(at)) {
       if (cells[nb] !== 3 - me) continue; // 已被提走的对方棋串此时为 0，自然跳过
       const group = flood(nb);
-      if (!group.liberty) for (const idx of group.stones) cells[idx] = 0;
+      if (!group.liberty) {
+        captured = true;
+        for (const idx of group.stones) cells[idx] = 0;
+      }
     }
     if (!flood(at).liberty) return false;
 
-    const next: NNBoardState = [];
-    for (let j = 0; j < n; j++) {
-      const row: (Player | null)[] = [];
-      for (let i = 0; i < n; i++) {
-        const v = cells[j * n + i];
-        row.push(v === 1 ? 'black' : v === 2 ? 'white' : null);
-      }
-      next.push(row);
-    }
-    return !this._positionKeys.has(positionalKey(next));
+    // 未提子的着法不可能重现历史局面（当前全盘棋子仍在，历史局面不可能恰好
+    // 多出落点这一子——提走它的那串“最后一手”必然留存至今，构成矛盾），
+    // 因此多数探测无需构造局面键。
+    if (!captured) return true;
+    return !this._positionKeys.has(positionalKeyOfCells(cells, n));
   }
 
   /** 停一手。 */
@@ -363,6 +362,26 @@ export class GoGame {
     sgf += ')\n';
     return sgf;
   }
+}
+
+/**
+ * 与 superko.ts 的 positionalKey 完全相同的 base-3 编码，但直接读取数值棋盘
+ * （0 空 1 黑 2 白），省掉每次探测都构造一遍字符串棋盘的开销。
+ */
+function positionalKeyOfCells(cells: Uint8Array, size: number): string {
+  let key = `${size}:`;
+  let packed = 0;
+  let count = 0;
+  for (let i = 0; i < cells.length; i++) {
+    packed = packed * 3 + cells[i]!;
+    if (++count === 3) {
+      key += String.fromCharCode(65 + packed);
+      packed = 0;
+      count = 0;
+    }
+  }
+  if (count > 0) key += String.fromCharCode(65 + packed * 3 ** (3 - count));
+  return key;
 }
 
 function describeIllegal(game: GoGame, x: number, y: number): string {

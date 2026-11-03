@@ -196,3 +196,80 @@ describe('GoGame（goban-engine 封装，中国规则）', () => {
     expect(group).toContainEqual({ x: 1, y: 0 });
   });
 });
+
+describe('isLegal 无副作用探测', () => {
+  /** 确定性伪随机（mulberry32），让测试可复现。 */
+  const mulberry32 = (seed: number): (() => number) => () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+
+  /** 用克隆重放判定 place() 是否接受，作为 isLegal 的对照真值。 */
+  const placeAccepts = (game: GoGame, x: number, y: number): boolean => {
+    const probe = new GoGame(game.size);
+    probe.resetToMoves(game.moves);
+    try {
+      probe.place(x, y);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  it('停一手恒合法，占子与越界恒非法', () => {
+    const g = new GoGame(9);
+    expect(g.isLegal(-1, -1)).toBe(true);
+    expect(g.isLegal(0, 0)).toBe(true);
+    g.place(0, 0);
+    expect(g.isLegal(0, 0)).toBe(false);
+    expect(g.isLegal(-1, -1)).toBe(true);
+    expect(g.isLegal(9, 0)).toBe(false);
+    expect(g.isLegal(0.5, 1)).toBe(false);
+    expect(g.isLegal(0, -1)).toBe(false);
+  });
+
+  it('劫争局面：立即回提非法，寻劫后可回提（提子路径的局面键）', () => {
+    const g = new GoGame(9);
+    // 同「打劫」用例的经典劫形
+    g.place(1, 0);
+    g.place(2, 0);
+    g.place(0, 1);
+    g.place(3, 1);
+    g.place(1, 2);
+    g.place(2, 2);
+    g.place(8, 8);
+    g.place(1, 1); // 白劫心
+    g.place(2, 1); // 黑提劫
+    expect(g.isLegal(1, 1)).toBe(false); // 立即回提重现历史局面
+    expect(g.isLegal(4, 4)).toBe(true); // 无关空点不受影响
+    g.place(0, 8); // 白寻劫
+    g.place(7, 7); // 黑应劫
+    expect(g.isLegal(1, 1)).toBe(true);
+  });
+
+  it('随机对局中逐点与 place() 判定一致（含提子棋形）', () => {
+    for (const seed of [7, 2024]) {
+      const rand = mulberry32(seed);
+      const game = new GoGame(9);
+      const size = 9;
+      for (let ply = 0; ply < 180 && game.consecutivePasses < 2; ply++) {
+        // 周期性做全盘逐点对照（末手必查，覆盖提子后的局面键校验）
+        if (ply % 13 === 0 || ply === 179) {
+          for (let y = 0; y < size; y++) {
+            for (let x = 0; x < size; x++) {
+              expect(game.isLegal(x, y)).toBe(placeAccepts(game, x, y));
+            }
+          }
+          expect(game.isLegal(-1, -1)).toBe(true);
+        }
+        const x = Math.floor(rand() * size);
+        const y = Math.floor(rand() * size);
+        if (!game.isLegal(x, y)) continue;
+        game.place(x, y);
+      }
+    }
+  });
+});
