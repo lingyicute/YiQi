@@ -228,6 +228,9 @@ document.addEventListener('keydown', (e) => {
   // 按住不放只对光标移动有意义；停一手、悔棋、重开不能被连发
   if (e.repeat) return;
   if (k === 'Enter' || k === ' ') {
+    // 键盘光标尚未出现（未被方向键/WASD 激活）时，回车/空格不能落子或标记，
+    // 否则用户看不见操作目标，会在 (0,0) 凭空落子
+    if (!app.renderer.kbdCursor) return;
     const c = { x: app.renderer.cursor.x, y: app.renderer.cursor.y };
     if (app.phase === 'scoring') { app.toggleDeadAt(c.x, c.y); return; }
     const ok = app.humanPlace(c.x, c.y);
