@@ -289,7 +289,7 @@ export class BoardRenderer {
     }
 
     /* 键盘光标 */
-    if (this.kbdCursor && !st.territory) {
+    if (this.kbdCursor && (st.canPlay || st.scoring)) {
       ctx.save();
       ctx.strokeStyle = pal.primary;
       ctx.lineWidth = 2;
