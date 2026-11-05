@@ -114,4 +114,69 @@ describe('AI setup lifecycle', () => {
     ai.dispose();
   });
 
+  it('dispose during worker init rejects with canceled', async () => {
+    vi.mocked(prepareModels).mockResolvedValue(result());
+    let rejectInit!: (err: Error) => void;
+    vi.mocked(KataGoClient).mockImplementationOnce(function () {
+      return {
+        init: vi.fn(() => new Promise((_, rej) => { rejectInit = rej; })),
+        dispose: vi.fn(() => rejectInit?.(new Error('AI 引擎已销毁'))),
+        cancel: vi.fn(),
+        analyze: vi.fn(),
+      };
+    } as never);
+    const ai = new AiPlayer();
+    const pending = ai.setup(() => {});
+    const rejected = expect(pending).rejects.toThrow('canceled');
+    await vi.waitFor(() => expect(ai.status).toBe('initializing'));
+    ai.dispose();
+    await rejected;
+    expect(ai.status).toBe('idle');
+  });
+
+  it('forwards the initialized backend and board history to chooseMove and finalOwnership', async () => {
+    vi.mocked(prepareModels).mockResolvedValue(result());
+    const ai = new AiPlayer();
+    await ai.setup(() => {});
+    const client = vi.mocked(KataGoClient).mock.results[0]!.value;
+    client.analyze.mockResolvedValue({
+      humanPolicy: new Float32Array(82),
+      ownership: new Float32Array(81),
+      rootScoreLead: 0,
+      moves: [{ order: 0, x: -1, y: -1 }],
+    });
+    const board = Array.from({ length: 9 }, () => Array(9).fill(null));
+    const prev = Array.from({ length: 9 }, () => Array(9).fill(null));
+    const prev2 = Array.from({ length: 9 }, () => Array(9).fill(null));
+    await ai.chooseMove({
+      difficulty: 'easy',
+      board,
+      previousBoard: prev,
+      previousPreviousBoard: prev2,
+      currentPlayer: 'black',
+      moveHistory: [],
+      rules: 'chinese-ogs',
+      isLegal: () => true,
+    });
+    expect(client.analyze).toHaveBeenLastCalledWith(expect.objectContaining({
+      backend: 'wasm',
+      previousBoard: prev,
+      previousPreviousBoard: prev2,
+    }));
+    await ai.finalOwnership({
+      board,
+      previousBoard: prev,
+      previousPreviousBoard: prev2,
+      currentPlayer: 'black',
+      moveHistory: [],
+      rules: 'chinese-ogs',
+    });
+    expect(client.analyze).toHaveBeenLastCalledWith(expect.objectContaining({
+      backend: 'wasm',
+      previousBoard: prev,
+      previousPreviousBoard: prev2,
+    }));
+    ai.dispose();
+  });
+
 });

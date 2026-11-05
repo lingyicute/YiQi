@@ -11,7 +11,7 @@ import { pickHumanBotMove } from './humanBotMove';
 import type { CandidateMove } from './types';
 import { KataGoClient, type AnalyzeArgs, type InitResult } from './client';
 import { prepareModels, modelsCached, revokeModelUrl, preferredBackend, TOTAL_DOWNLOAD_BYTES } from './modelFiles';
-import type { BoardState, GameRules, Move, Player } from './types';
+import type { BoardState, GameRules, KataGoBackendPreference, Move, Player } from './types';
 import { KOMI } from '../core/rules';
 
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'expert';
@@ -123,11 +123,10 @@ export class AiPlayer {
       this.backend = init.backend;
       this.status = 'ready';
     } catch (err) {
-      if (generation === this.setupGeneration) {
-        this.releaseModels();
-        this.status = 'failed';
-        this.lastError = err instanceof Error ? err.message : String(err);
-      }
+      if (generation !== this.setupGeneration) throw new Error('canceled');
+      this.releaseModels();
+      this.status = 'failed';
+      this.lastError = err instanceof Error ? err.message : String(err);
       throw err;
     }
   }
@@ -138,6 +137,12 @@ export class AiPlayer {
 
   get backendName(): string | null {
     return this.backend;
+  }
+
+  private activeBackend(): KataGoBackendPreference | undefined {
+    return this.backend === 'webgpu' || this.backend === 'wasm' || this.backend === 'cpu'
+      ? this.backend
+      : undefined;
   }
 
   /** 让正在进行的思考作废（悔棋/重开/换难度）。返回作废令牌。 */
@@ -170,7 +175,7 @@ export class AiPlayer {
 
     const analyzeArgs: AnalyzeArgs = {
       modelUrl: this.mainModelUrl,
-      backend: this.backend === 'webgpu' ? 'webgpu' : undefined,
+      backend: this.activeBackend(),
       board: args.board,
       previousBoard: args.previousBoard,
       previousPreviousBoard: args.previousPreviousBoard,
@@ -240,6 +245,7 @@ export class AiPlayer {
   async finalOwnership(args: {
     board: BoardState;
     previousBoard?: BoardState;
+    previousPreviousBoard?: BoardState;
     currentPlayer: Player;
     moveHistory: Move[];
     repetitionHistory?: readonly string[];
@@ -249,8 +255,10 @@ export class AiPlayer {
     try {
       const analysis = await this.client.analyze({
         modelUrl: this.mainModelUrl,
+        backend: this.activeBackend(),
         board: args.board,
         previousBoard: args.previousBoard,
+        previousPreviousBoard: args.previousPreviousBoard,
         currentPlayer: args.currentPlayer,
         moveHistory: args.moveHistory,
         repetitionHistory: args.repetitionHistory,
