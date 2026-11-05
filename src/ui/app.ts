@@ -396,8 +396,11 @@ class App {
   private async autoMarkDead(): Promise<void> {
     const game = this.game;
     const revision = this.scoringRevision;
+    const snap = this.lastAnalyzedBoards;
     const ownership = await this.ai.finalOwnership({
       board: snapToNN(this.game),
+      previousBoard: nnFromGrid(snap.prev, this.game.size),
+      previousPreviousBoard: nnFromGrid(snap.prev2, this.game.size),
       currentPlayer: this.game.playerToMove,
       moveHistory: this.game.nnMoveHistory(),
       repetitionHistory: this.game.repetitionHistory(),

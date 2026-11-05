@@ -742,6 +742,10 @@ async function handleMessage(msg: KataGoWorkerRequest): Promise<void> {
         // A missing or broken human net must not take the real analysis down with it.
         humanPolicyError = err instanceof Error ? err.message : String(err);
       }
+      if (shouldAbort()) {
+        postCanceled();
+        return;
+      }
     }
     const humanMovePriors = humanLogits ? softmaxOverBoard(humanLogits) : null;
 
