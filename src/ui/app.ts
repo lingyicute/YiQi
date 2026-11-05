@@ -544,6 +544,7 @@ class App {
       this.over = false;
       this.resultText = null;
       this.resultSGF = undefined;
+      this.scoringRevision++;
       this.startTimer();
       if (resigned) {
         // 认输不产生着法：悔棋只撤销认输，棋盘保持不变
@@ -604,7 +605,7 @@ class App {
   }
 
   confirmResign(): void {
-    if (this.over || this.phase === 'scoring') return;
+    if (this.over || this.phase === 'scoring' || this.game.moveNumber === 0) return;
     this.closeDialog();
     this.ai.cancel();
     this.aiToken++;
@@ -647,22 +648,25 @@ class App {
   restoreSession(): void {
     const ses = parseSession(LS.get<unknown>('session', null));
     if (!ses || ses.over) return;
+    const game = new GoGame(ses.size);
+    try {
+      game.resetToMoves(ses.moves);
+    } catch {
+      LS.set('session', null);
+      return;
+    }
     this.settings.mode = ses.mode;
     this.settings.side = ses.side;
     this.settings.boardSize = ses.size;
     LS.set('settings', this.settings);
     this.mode = ses.mode;
     this.humanColor = ses.side === 'W' ? WHITE : BLACK;
-    this.game = new GoGame(ses.size);
-    try {
-      this.game.resetToMoves(ses.moves);
-    } catch {
-      LS.set('session', null);
-      this.newGame();
-      return;
-    }
+    this.game = game;
     this.renderer.state.size = ses.size;
     this.renderer.state.board = this.game.board;
+    this.renderer.cursor = { x: 0, y: 0 };
+    this.renderer.hover = null;
+    this.renderer.kbdCursor = false;
     this.snapshotBoards();
     this.renderer.fitBoard();
     this.elapsed = ses.elapsed;
