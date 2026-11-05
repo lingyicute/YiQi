@@ -10,7 +10,7 @@
  */
 import { GobanEngine } from 'goban-engine';
 import type { JGOFMove } from 'goban-engine/build/engine/formats/JGOF';
-import { positionalKey, situationalKeyFromPositional } from '../ai/superko';
+import { situationalKeyFromPositional } from '../ai/superko';
 import type { BoardState as NNBoardState, Move as NNMove, Player } from '../ai/types';
 
 export type Point = { x: number; y: number };
@@ -133,7 +133,7 @@ export class GoGame {
     }
     this._moves.push({ x, y });
     // 完整历史的位置超级劫检查（引擎自带检查只回看 30 手，此处覆盖全局）
-    const posKey = positionalKey(this.nnBoard());
+    const posKey = positionalKeyOfBoard(this.engine.board, this.size);
     if (this._positionKeys.has(posKey)) {
       this._moves.pop();
       this.resetToMoves(this._moves);
@@ -153,10 +153,23 @@ export class GoGame {
     const board = this.engine.board;
     if (board[y]![x] !== 0) return false;
     const me = this._currentPlayerCache === 'black' ? 1 : 2;
+    const opp = 3 - me;
+
+    // 快速排除：若邻接至少一个空点且不接触对方棋子，则既不可能提子也不可能自杀，必然合法。
+    let hasEmptyNeighbor = false;
+    let hasOppNeighbor = false;
+    if (x > 0) { const v = board[y]![x - 1]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
+    if (x < n - 1) { const v = board[y]![x + 1]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
+    if (y > 0) { const v = board[y - 1]![x]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
+    if (y < n - 1) { const v = board[y + 1]![x]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
+    if (hasEmptyNeighbor && !hasOppNeighbor) return true;
+
     const cells = new Uint8Array(n * n);
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) cells[j * n + i] = board[j]![i]!;
     const at = y * n + x;
     cells[at] = me;
+    const seen = new Uint8Array(n * n);
+    let stamp = 0;
 
     const adjacent = (idx: number): number[] => {
       const px = idx % n, py = (idx - px) / n;
@@ -168,30 +181,33 @@ export class GoGame {
       return out;
     };
     const flood = (start: number): { stones: number[]; liberty: boolean } => {
+      const tag = ++stamp;
       const color = cells[start]!;
       const stones = [start];
-      const seen = new Set<number>(stones);
+      seen[start] = tag;
       let liberty = false;
       for (let k = 0; k < stones.length; k++) {
         for (const nb of adjacent(stones[k]!)) {
           const v = cells[nb]!;
           if (v === 0) liberty = true;
-          else if (v === color && !seen.has(nb)) { seen.add(nb); stones.push(nb); }
+          else if (v === color && seen[nb] !== tag) { seen[nb] = tag; stones.push(nb); }
         }
       }
       return { stones, liberty };
     };
 
     let captured = false;
-    for (const nb of adjacent(at)) {
-      if (cells[nb] !== 3 - me) continue; // 已被提走的对方棋串此时为 0，自然跳过
-      const group = flood(nb);
-      if (!group.liberty) {
-        captured = true;
-        for (const idx of group.stones) cells[idx] = 0;
+    if (hasOppNeighbor) {
+      for (const nb of adjacent(at)) {
+        if (cells[nb] !== opp) continue; // 已被提走的对方棋串此时为 0，自然跳过
+        const group = flood(nb);
+        if (!group.liberty) {
+          captured = true;
+          for (const idx of group.stones) cells[idx] = 0;
+        }
       }
     }
-    if (!flood(at).liberty) return false;
+    if (!hasEmptyNeighbor && !captured && !flood(at).liberty) return false;
 
     // 未提子的着法不可能重现历史局面（当前全盘棋子仍在，历史局面不可能恰好
     // 多出落点这一子——提走它的那串“最后一手”必然留存至今，构成矛盾），
@@ -264,13 +280,18 @@ export class GoGame {
 
   private recordRepetition(posKey?: string): void {
     this._currentPlayerCache = this._moves.length % 2 === 0 ? 'black' : 'white';
-    const key = posKey ?? positionalKey(this.nnBoard());
+    const key = posKey ?? positionalKeyOfBoard(this.engine.board, this.size);
     this._repetitionKeys.add(situationalKeyFromPositional(key, this._currentPlayerCache));
     this._positionKeys.add(key);
   }
 
+  private inBounds(x: number, y: number): boolean {
+    return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < this.size && y < this.size;
+  }
+
   /** 某点所在棋串（同色连通块）。 */
   groupAt(x: number, y: number): Point[] {
+    if (!this.inBounds(x, y)) return [];
     const board = this.engine.board;
     const color = board[y]![x]!;
     if (!color) return [];
@@ -302,12 +323,13 @@ export class GoGame {
   }
 
   isRemoved(x: number, y: number): boolean {
+    if (!this.inBounds(x, y)) return false;
     return !!this.engine.removal[y]![x];
   }
 
   /** 标记/取消整组死子（计分阶段）。 */
   setGroupRemoved(x: number, y: number, removed: boolean): void {
-    if (!this.engine.board[y]![x]) return;
+    if (!this.inBounds(x, y) || !this.engine.board[y]![x]) return;
     for (const p of this.groupAt(x, y)) {
       this.engine.setRemoved(p.x, p.y, removed, false);
     }
@@ -366,8 +388,27 @@ export class GoGame {
 
 /**
  * 与 superko.ts 的 positionalKey 完全相同的 base-3 编码，但直接读取数值棋盘
- * （0 空 1 黑 2 白），省掉每次探测都构造一遍字符串棋盘的开销。
+ * （0 空 1 黑 2 白），省掉每次落子/探测都构造一遍字符串棋盘的开销。
  */
+function positionalKeyOfBoard(board: number[][], size: number): string {
+  let key = `${size}:`;
+  let packed = 0;
+  let count = 0;
+  for (let y = 0; y < size; y++) {
+    const row = board[y]!;
+    for (let x = 0; x < size; x++) {
+      packed = packed * 3 + row[x]!;
+      if (++count === 3) {
+        key += String.fromCharCode(65 + packed);
+        packed = 0;
+        count = 0;
+      }
+    }
+  }
+  if (count > 0) key += String.fromCharCode(65 + packed * 3 ** (3 - count));
+  return key;
+}
+
 function positionalKeyOfCells(cells: Uint8Array, size: number): string {
   let key = `${size}:`;
   let packed = 0;

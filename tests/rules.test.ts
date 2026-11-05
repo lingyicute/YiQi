@@ -184,7 +184,7 @@ describe('GoGame（goban-engine 封装，中国规则）', () => {
     expect(sgf).toContain('RE[B+2.5]');
   });
 
-  it('groupAt 找到整组棋子', () => {
+  it('groupAt 找到整组棋子，越界坐标安全返回', () => {
     const g = new GoGame(9);
     g.place(0, 0);
     g.place(8, 8);
@@ -194,6 +194,10 @@ describe('GoGame（goban-engine 封装，中国规则）', () => {
     expect(group.length).toBe(2);
     expect(group).toContainEqual({ x: 0, y: 0 });
     expect(group).toContainEqual({ x: 1, y: 0 });
+    expect(g.groupAt(-1, 0)).toEqual([]);
+    expect(g.groupAt(0, 9)).toEqual([]);
+    expect(g.isRemoved(-1, 0)).toBe(false);
+    expect(() => g.setGroupRemoved(-1, 0, true)).not.toThrow();
   });
 });
 
