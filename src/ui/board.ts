@@ -95,9 +95,35 @@ export class BoardRenderer {
   }
 
   refreshPalette(): void {
-    const dark = document.documentElement.dataset.theme === 'dark';
-    const accName = ACCENTS[document.documentElement.dataset.accent || ''] ? document.documentElement.dataset.accent! : 'purple';
+    const root = document.documentElement;
+    const dark = root.dataset.theme === 'dark';
+    const accName = ACCENTS[root.dataset.accent || ''] ? root.dataset.accent! : 'purple';
     const acc = ACCENTS[accName]!;
+    const deep = ACC_DEEP[accName]!;
+    if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function' || !CSS.supports('color', 'color-mix(in srgb,#000,#fff)')) {
+      const vars: Record<string, string> = dark ? {
+        '--bg': mixHex('#100d17', acc, 0.04),
+        '--glow': rgbaOf(acc, 0.12),
+        '--on-surface-2': rgbaOf(mixHex('#a29caf', acc, 0.08), 0.78),
+        '--container': mixHex('#1e1b29', acc, 0.09),
+        '--container-high': mixHex('#342b4e', acc, 0.30),
+        '--float': mixHex('#282334', acc, 0.11),
+        '--tonal': mixHex('#2b2737', acc, 0.08),
+        '--pcontainer': mixHex('#262033', deep, 0.72),
+        '--outline': mixHex('#6f6980', acc, 0.16),
+      } : {
+        '--bg': mixHex('#faf8fe', acc, 0.07),
+        '--glow': rgbaOf(acc, 0.16),
+        '--on-surface-2': mixHex('#5b5666', acc, 0.08),
+        '--container': mixHex('#f5f2fb', acc, 0.12),
+        '--container-high': mixHex('#eee8fd', acc, 0.26),
+        '--float': mixHex('#ffffff', acc, 0.08),
+        '--tonal': mixHex('#edebf2', acc, 0.07),
+        '--pcontainer': deep,
+        '--outline': mixHex('#7a7584', acc, 0.12),
+      };
+      for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+    }
     this.pal = {
       board: mixHex(dark ? '#1a1624' : '#faf8ff', acc, dark ? 0.12 : 0.15),
       line: dark ? rgbaOf('#efeafa', 0.30) : rgbaOf('#37304a', 0.42),
@@ -105,9 +131,9 @@ export class BoardRenderer {
       sBA: dark ? '#5d5670' : '#575064', sBB: dark ? '#0c0912' : '#16111f',
       sWA: '#ffffff', sWB: dark ? '#c7c2d6' : '#d3cede',
       sWS: dark ? rgbaOf('#3b3350', 0.55) : rgbaOf('#6f6880', 0.45),
-      primary: dark ? acc : ACC_DEEP[accName]!,
+      primary: dark ? acc : deep,
       acc,
-      deep: ACC_DEEP[accName]!,
+      deep,
       coord: dark ? rgbaOf('#efeafa', 0.5) : rgbaOf('#37304a', 0.5),
     };
     this.scheduleDraw();

@@ -98,7 +98,7 @@ export function normalizeSettings(raw: unknown): Settings {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   const s = raw as Record<string, unknown>;
   if (s.theme === 'light' || s.theme === 'dark' || s.theme === null) out.theme = s.theme;
-  if (typeof s.accent === 'string' && Object.hasOwn(ACCENTS, s.accent)) out.accent = s.accent;
+  if (typeof s.accent === 'string' && Object.prototype.hasOwnProperty.call(ACCENTS, s.accent)) out.accent = s.accent;
   if (typeof s.mode === 'string' && MODES.includes(s.mode)) out.mode = s.mode;
   if (s.side === 'B' || s.side === 'W') out.side = s.side;
   if (s.boardSize === 9 || s.boardSize === 13 || s.boardSize === 19) out.boardSize = s.boardSize;
