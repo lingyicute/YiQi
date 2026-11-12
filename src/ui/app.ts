@@ -8,7 +8,7 @@ import { GoGame, IllegalMoveError, KOMI, type ScoreSummary } from '../core/rules
 import { AiPlayer, DIFFICULTY_LABEL, DIFFICULTY_RANK_LABEL, type Difficulty } from '../ai/aiPlayer';
 import { BoardRenderer, BLACK, WHITE } from './board';
 import { playStoneSound, playWinSound, triggerHaptic } from './sounds';
-import { LS, ACCENTS, emptyRecords, migrateRecords, type Records, type SessionSave, type Settings, normalizeSettings, parseSession } from './settings';
+import { LS, ACCENTS, emptyRecords, isAccentName, migrateRecords, type Records, type SessionSave, type Settings, normalizeSettings, parseSession } from './settings';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -94,7 +94,7 @@ class App {
   }
 
   applyAccent(name: string): void {
-    if (!ACCENTS[name]) return;
+    if (!isAccentName(name)) return;
     document.documentElement.dataset.accent = name;
     this.settings.accent = name;
     LS.set('settings', this.settings);
@@ -1071,7 +1071,7 @@ class App {
   init(): void {
     const preferLight = !window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.dataset.theme = this.settings.theme || (preferLight ? 'light' : 'dark');
-    document.documentElement.dataset.accent = ACCENTS[this.settings.accent] ? this.settings.accent : 'purple';
+    document.documentElement.dataset.accent = isAccentName(this.settings.accent) ? this.settings.accent : 'purple';
     this.renderer.refreshPalette();
 
     // 选项 chips 初始状态

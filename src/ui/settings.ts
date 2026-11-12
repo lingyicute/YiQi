@@ -47,7 +47,7 @@ export const emptyRecords = (): Records => ({});
  * 迁移为按难度合并的单一计数表。
  */
 export function migrateRecords(raw: unknown): Records {
-  if (!raw || typeof raw !== 'object') return {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
   const out: Records = {};
   const add = (k: string, v: unknown) => {
     if (!v || typeof v !== 'object') return;
@@ -58,7 +58,7 @@ export function migrateRecords(raw: unknown): Records {
     r.w += w; r.l += l;
   };
   const src = raw as { b?: unknown; w?: unknown };
-  if (src.b || src.w) {
+  if (Object.prototype.hasOwnProperty.call(src, 'b') || Object.prototype.hasOwnProperty.call(src, 'w')) {
     for (const part of [src.b, src.w]) {
       if (!part || typeof part !== 'object') continue;
       for (const [k, v] of Object.entries(part as Record<string, unknown>)) add(k, v);
@@ -77,6 +77,10 @@ export const ACC_DEEP: Record<string, string> = {
   purple: '#6a54c8', blue: '#3f63c0', teal: '#0f7a6e', green: '#1e7a3c',
   yellow: '#7d660d', orange: '#a04d08', pink: '#b02e6e', red: '#c03230',
 };
+
+export function isAccentName(name: unknown): name is string {
+  return typeof name === 'string' && Object.prototype.hasOwnProperty.call(ACCENTS, name);
+}
 
 export type SessionSave = {
   mode: string;
@@ -98,7 +102,7 @@ export function normalizeSettings(raw: unknown): Settings {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
   const s = raw as Record<string, unknown>;
   if (s.theme === 'light' || s.theme === 'dark' || s.theme === null) out.theme = s.theme;
-  if (typeof s.accent === 'string' && Object.prototype.hasOwnProperty.call(ACCENTS, s.accent)) out.accent = s.accent;
+  if (isAccentName(s.accent)) out.accent = s.accent;
   if (typeof s.mode === 'string' && MODES.includes(s.mode)) out.mode = s.mode;
   if (s.side === 'B' || s.side === 'W') out.side = s.side;
   if (s.boardSize === 9 || s.boardSize === 13 || s.boardSize === 19) out.boardSize = s.boardSize;
