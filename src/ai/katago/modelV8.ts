@@ -456,6 +456,32 @@ export class KataGoModelV8Tf {
     });
   }
 
+  forwardPolicyOnly(
+    spatial: tf.Tensor4D,
+    global: tf.Tensor2D,
+    meta?: tf.Tensor2D
+  ): {
+    policy: tf.Tensor4D;
+    policyPass: tf.Tensor2D;
+  } {
+    return tf.tidy(() => {
+      const trunk = this.forwardTrunk(spatial, global, meta);
+
+      let p1Out = conv2d(trunk, this.p1);
+      const g1Out = conv2d(trunk, this.g1);
+      const g1Out2 = bnAct(g1Out, this.g1BN, this.g1Activation);
+      const g1Concat = poolRowsGPool(g1Out2);
+      const g1Bias = tf.matMul(g1Concat, this.gpoolToBias.w) as tf.Tensor2D;
+      p1Out = p1Out.add(g1Bias.reshape([g1Bias.shape[0], 1, 1, g1Bias.shape[1]])) as tf.Tensor4D;
+      const p1Out2 = bnAct(p1Out, this.p1BN, this.p1Activation);
+
+      const policy = conv2d(p1Out2, this.p2);
+      const policyPass = this.forwardPolicyPass(g1Concat);
+
+      return { policy, policyPass };
+    });
+  }
+
   forwardValueOnly(
     spatial: tf.Tensor4D,
     global: tf.Tensor2D,
@@ -557,6 +583,15 @@ export class KataGoModelV8Tf {
 
   dispose(): void {
     const tensors: tf.Tensor[] = [
+      ...(this.metaEncoder
+        ? [
+            this.metaEncoder.mul1.w,
+            this.metaEncoder.bias1.b,
+            this.metaEncoder.mul2.w,
+            this.metaEncoder.bias2.b,
+            this.metaEncoder.mul3.w,
+          ]
+        : []),
       this.trunkConv1.filter,
       this.trunkGInput.w,
       this.trunkTipBN.scale,
