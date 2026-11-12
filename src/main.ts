@@ -140,11 +140,13 @@ $('btnConfirmScore').addEventListener('click', () => app.confirmScore());
 
 /* ================= 棋盘交互 ================= */
 let touchTap: { x0: number; y0: number; id: number } | null = null;
+const activeTouches = new Set<number>();
 const TAP_SLOP2 = 12 * 12;
 
 canvas.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'touch') {
-    touchTap = touchTap ? null : { x0: e.clientX, y0: e.clientY, id: e.pointerId };
+    activeTouches.add(e.pointerId);
+    touchTap = activeTouches.size === 1 ? { x0: e.clientX, y0: e.clientY, id: e.pointerId } : null;
     return;
   }
   if (e.button !== 0) return; // 右键/中键不落子
@@ -170,14 +172,18 @@ canvas.addEventListener('pointermove', (e) => {
 });
 canvas.addEventListener('pointerup', (e) => {
   if (e.pointerType !== 'touch') return;
-  if (touchTap && e.pointerId === touchTap.id) {
+  activeTouches.delete(e.pointerId);
+  if (touchTap && e.pointerId === touchTap.id && activeTouches.size === 0) {
     touchTap = null;
     canvas.focus({ preventScroll: true });
     tryPlaceFromEvent(e);
   }
 });
 canvas.addEventListener('pointercancel', (e) => {
-  if (e.pointerType === 'touch' && touchTap && e.pointerId === touchTap.id) touchTap = null;
+  if (e.pointerType === 'touch') {
+    activeTouches.delete(e.pointerId);
+    if (touchTap && e.pointerId === touchTap.id) touchTap = null;
+  }
 });
 canvas.addEventListener('pointerleave', () => { app.renderer.hover = null; app.renderer.scheduleDraw(); });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -194,14 +200,17 @@ function tryPlaceFromEvent(e: PointerEvent): void {
 
 /* ================= 键盘 ================= */
 document.addEventListener('keydown', (e) => {
+  if (e.isComposing) return;
   if (app.dialogOpen) {
     if (e.key === 'Escape') app.closeDialog();
     return;
   }
   const k = e.key;
-  if (k === 'Escape' && menu.classList.contains('open')) {
-    closeMenu();
-    $('btnMenu').focus();
+  if (menu.classList.contains('open')) {
+    if (k === 'Escape') {
+      closeMenu();
+      $('btnMenu').focus();
+    }
     return;
   }
   // 浏览器/系统快捷键（Ctrl+R 刷新、Ctrl+P 打印等）不应触发游戏操作
