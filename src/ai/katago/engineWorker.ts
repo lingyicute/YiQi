@@ -208,6 +208,9 @@ async function ensureBackend(backend?: KataGoBackendPreference): Promise<void> {
   model = null;
   loadedModelName = undefined;
   loadedModelUrl = null;
+  humanModel?.dispose();
+  humanModel = null;
+  loadedHumanModelUrl = null;
   search = null;
   searchKey = null;
 
@@ -340,7 +343,9 @@ async function ensureHumanModel(modelUrl: string): Promise<KataGoModelV8Tf> {
   if (parsed.metaEncoderVersion !== 1) {
     throw new Error('That model is not a human SL net (it has no metadata encoder)');
   }
-  humanModel = new KataGoModelV8Tf(parsed);
+  const nextHumanModel = new KataGoModelV8Tf(parsed);
+  humanModel?.dispose();
+  humanModel = nextHumanModel;
   loadedHumanModelUrl = modelUrl;
   return humanModel;
 }
@@ -399,7 +404,7 @@ async function computeHumanPolicyLogits(args: {
   const spatial = tf.tensor4d(evalSpatialV7, [1, BOARD_SIZE, BOARD_SIZE, 22]);
   const global = tf.tensor2d(evalGlobalV7, [1, 19]);
   const meta = tf.tensor2d(metaRow, [1, metaRow.length]);
-  const out = net.forwardPolicyValue(spatial, global, meta);
+  const out = net.forwardPolicyOnly(spatial, global, meta);
   try {
     const [policyArr, passArr] = await Promise.all([out.policy.data(), out.policyPass.data()]);
     const channels = net.policyOutChannels;
@@ -413,8 +418,6 @@ async function computeHumanPolicyLogits(args: {
     meta.dispose();
     out.policy.dispose();
     out.policyPass.dispose();
-    out.value.dispose();
-    out.scoreValue.dispose();
   }
 }
 
