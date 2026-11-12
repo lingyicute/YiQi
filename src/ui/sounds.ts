@@ -11,7 +11,7 @@ function ensureCtx(): AudioContext | null {
     const AudioCtor = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioCtor) return null;
     if (!audioCtx) audioCtx = new AudioCtor();
-    if (audioCtx.state === 'suspended') void audioCtx.resume();
+    if (audioCtx.state === 'suspended') void audioCtx.resume().catch(() => {});
     return audioCtx;
   } catch {
     return null;
