@@ -4,7 +4,7 @@
  * 棋盘：9 / 13 / 19 路；规则：中国大陆规则（数子法，黑贴 7.5 目，禁全局同形）。
  */
 import '../style.css';
-import { GoGame, IllegalMoveError, KOMI, type ScoreSummary } from '../core/rules';
+import { GoGame, IllegalMoveError, KOMI } from '../core/rules';
 import { AiPlayer, DIFFICULTY_LABEL, DIFFICULTY_RANK_LABEL, type Difficulty } from '../ai/aiPlayer';
 import { BoardRenderer, BLACK, WHITE } from './board';
 import { playStoneSound, playWinSound, triggerHaptic } from './sounds';
@@ -26,6 +26,7 @@ const MODE_TO_DIFF: Record<string, Difficulty> = {
   'ai-easy': 'easy', 'ai-medium': 'medium', 'ai-hard': 'hard', 'ai-expert': 'expert',
 };
 const SIZE_LABEL: Record<number, string> = { 9: '9路', 13: '13路', 19: '19路' };
+void SIZE_LABEL;
 
 const fmtTime = (s: number): string => {
   const m = Math.floor(s / 60), ss = s % 60;
@@ -109,7 +110,7 @@ class App {
     const caps = this.game.captures;
     $('capB').textContent = String(caps.byBlack);
     $('capW').textContent = String(caps.byWhite);
-    let label = this.phase === 'scoring' ? '终局计分' : this.over ? `共 ${this.game.moveNumber} 手` : `第 ${this.game.moveNumber + 1} 手`;
+    const label = this.phase === 'scoring' ? '终局计分' : this.over ? `共 ${this.game.moveNumber} 手` : `第 ${this.game.moveNumber + 1} 手`;
     mv.textContent = label;
 
     const dot = (p: number) => `<span class="stone-dot ${p === BLACK ? 'black' : 'white'}"></span>`;
@@ -223,6 +224,12 @@ class App {
   private syncBoard(): void {
     this.renderer.state.board = this.game.board;
     this.renderer.state.size = this.game.size;
+  }
+
+  /** 将最后一手标记同步到当前棋谱末尾（静止态，不重播落子缩放动画）。 */
+  private syncLastMove(): void {
+    const last = this.game.moves[this.game.moves.length - 1];
+    this.renderer.state.lastMove = last ? { x: last.x, y: last.y, at: -1000 } : null;
   }
 
   private snapshotBoards(): void {
@@ -369,7 +376,6 @@ class App {
     this.phase = 'scoring';
     this.stopTimer();
     this.ai.cancel();
-    this.renderer.state.territory = this.computeTerritory();
     this.updateScoringUI();
     this.updateHUD();
     this.renderer.scheduleDraw();
@@ -377,16 +383,11 @@ class App {
     this.toast('双方连续停一手，进入计分');
   }
 
-  private computeTerritory(): Int8Array {
-    const { ownership } = this.game.score();
-    return ownership;
-  }
-
   refreshScore(): void {
-    this.renderer.state.removedPoints = this.game.removedPoints();
-    this.renderer.state.territory = this.computeTerritory();
-    this.renderer.scheduleDraw();
     const s = this.game.score();
+    this.renderer.state.removedPoints = this.game.removedPoints();
+    this.renderer.state.territory = s.ownership;
+    this.renderer.scheduleDraw();
     const el = $('scoreInfo');
     if (el) {
       el.textContent = `黑 ${trimNum(s.black)} 子 · 白 ${trimNum(s.white - KOMI)} 子 · 贴目 ${trimNum(KOMI)}`;
@@ -573,7 +574,7 @@ class App {
     this.renderer.state.removedPoints = new Set();
     this.snapshotBoards();
     this.aiThinking = false;
-    this.renderer.state.lastMove = null;
+    this.syncLastMove();
     this.updateHUD();
     this.saveSession();
     this.renderer.scheduleDraw();
@@ -664,6 +665,7 @@ class App {
     this.game = game;
     this.renderer.state.size = ses.size;
     this.renderer.state.board = this.game.board;
+    this.syncLastMove();
     this.renderer.cursor = { x: 0, y: 0 };
     this.renderer.hover = null;
     this.renderer.kbdCursor = false;
@@ -717,8 +719,12 @@ class App {
         this.toast('AI 初始化失败，可在菜单中重试');
       }
     }
-    if (!this.aiDownloadDismissed) {
-      setTimeout(() => this.showDownloadDialog(), 500);
+    if (!this.aiDownloadDismissed && this.mode.startsWith('ai-')) {
+      setTimeout(() => {
+        if (!this.aiDownloadDismissed && !this.dialogOpen && !this.ai.ready && this.mode.startsWith('ai-')) {
+          void this.showDownloadDialog();
+        }
+      }, 500);
     }
     this.updateAILock();
   }
@@ -739,7 +745,8 @@ class App {
   /* ================= 对话框 ================= */
 
   openDialog(html: string): void {
-    this.dialogRevision++;
+    const rev = ++this.dialogRevision;
+    $('btnPalette').classList.remove('active');
     if (this.dialogCloseTimer !== null) {
       window.clearTimeout(this.dialogCloseTimer);
       this.dialogCloseTimer = null;
@@ -749,7 +756,9 @@ class App {
     $('scrim').hidden = false;
     this.dialogOpen = true;
     const btn = $('dialog').querySelector('.btn-pill.primary');
-    if (btn) setTimeout(() => (btn as HTMLElement).focus(), 30);
+    if (btn) setTimeout(() => {
+      if (this.dialogOpen && this.dialogRevision === rev) (btn as HTMLElement).focus();
+    }, 30);
   }
 
   closeDialog(): void {
@@ -870,7 +879,6 @@ class App {
   }
 
   showPalette(): void {
-    $('btnPalette').classList.add('active');
     const cur = document.documentElement.dataset.accent;
     const sw = Object.entries(ACCENTS).map(([k, c]) => `
       <button class="swatch ${k === cur ? 'sel' : ''}" data-accent="${k}" style="background:${c};color:${c}" title="${k}">
@@ -879,6 +887,7 @@ class App {
     this.openDialog(`
       <div class="dlg-title" style="font-size:18px">选择配色</div>
       <div class="swatches">${sw}</div>`);
+    $('btnPalette').classList.add('active');
   }
 
   /* ================= 模型下载对话框 ================= */
@@ -894,12 +903,15 @@ class App {
       void this.startDownload();
       return;
     }
+    const rev = this.dialogRevision;
     // 每次打开都重新实测 WASM/WebGPU 能力（不沿用启动时的缓存结论）
     {
       const { wasmSupported, webgpuAvailable } = await import('../ai/modelFiles');
       this.wasmUnsupported = !(await wasmSupported());
       this.webgpuMissing = !(await webgpuAvailable());
+      this.updateAILock();
     }
+    if (this.dialogRevision !== rev && this.dialogOpen) return;
     if (this.wasmUnsupported) {
       this.openDialog(`
       <div class="dlg-icon">${ICO.chip}</div>
