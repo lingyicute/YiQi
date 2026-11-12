@@ -4,7 +4,6 @@
  * 键盘光标、最后一手强调点；围棋扩展：星位随路数变化、坐标、
  * 终局地域着色与死子标记。
  */
-
 import { ACCENTS, ACC_DEEP, isAccentName } from './settings';
 
 export const EMPTY = 0;
@@ -284,18 +283,24 @@ export class BoardRenderer {
     /* 终局地域着色（计分阶段） */
     if (st.territory) {
       const tSize = Math.max(3, g * 0.22);
+      ctx.save();
+      ctx.lineWidth = 1;
       for (let y = 0; y < n; y++) {
         for (let x = 0; x < n; x++) {
           const owner = st.territory[y * n + x]!;
           if (!owner) continue;
           const v = st.board[y]![x]!;
           if (v) continue; // 空点才画地域块
+          const rx = m + x * g - tSize / 2;
+          const ry = m + y * g - tSize / 2;
           ctx.fillStyle = owner === 1 ? pal.sBB : pal.sWA;
+          ctx.strokeStyle = owner === 1 ? 'rgba(255,255,255,.32)' : pal.sWS;
           ctx.globalAlpha = 0.85;
-          ctx.fillRect(m + x * g - tSize / 2, m + y * g - tSize / 2, tSize, tSize);
-          ctx.globalAlpha = 1;
+          ctx.fillRect(rx, ry, tSize, tSize);
+          ctx.strokeRect(rx, ry, tSize, tSize);
         }
       }
+      ctx.restore();
     }
 
     const now = performance.now();
@@ -324,7 +329,7 @@ export class BoardRenderer {
 
     /* 棋子（最后一手带落子动画）+ 死子淡化 */
     const last = st.lastMove;
-    const animT = last ? Math.min(1, (now - last.at) / 150) : 1;
+    const animT = last && last.x >= 0 ? Math.min(1, Math.max(0, (now - last.at) / 150)) : 1;
     for (let y = 0; y < n; y++) {
       for (let x = 0; x < n; x++) {
         const p = st.board[y]![x]!;
@@ -363,6 +368,6 @@ export class BoardRenderer {
       }
     }
 
-    if (last && animT < 1) this.scheduleDraw();
+    if (last && last.x >= 0 && animT < 1) this.scheduleDraw();
   }
 }
