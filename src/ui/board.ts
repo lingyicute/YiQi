@@ -5,18 +5,11 @@
  * 终局地域着色与死子标记。
  */
 
+import { ACCENTS, ACC_DEEP, isAccentName } from './settings';
+
 export const EMPTY = 0;
 export const BLACK = 1;
 export const WHITE = 2;
-
-const ACCENTS: Record<string, string> = {
-  purple: '#a78bfa', blue: '#82aaff', teal: '#5edfd0', green: '#6fdc8c',
-  yellow: '#ecc64f', orange: '#f6ad7b', pink: '#f17bb0', red: '#ef6f6f',
-};
-const ACC_DEEP: Record<string, string> = {
-  purple: '#6a54c8', blue: '#3f63c0', teal: '#0f7a6e', green: '#1e7a3c',
-  yellow: '#7d660d', orange: '#a04d08', pink: '#b02e6e', red: '#c03230',
-};
 
 /** 每种路数的星位（0 基坐标）。 */
 export function starPoints(n: number): Array<[number, number]> {
@@ -97,7 +90,7 @@ export class BoardRenderer {
   refreshPalette(): void {
     const root = document.documentElement;
     const dark = root.dataset.theme === 'dark';
-    const accName = ACCENTS[root.dataset.accent || ''] ? root.dataset.accent! : 'purple';
+    const accName = isAccentName(root.dataset.accent) ? root.dataset.accent : 'purple';
     const acc = ACCENTS[accName]!;
     const deep = ACC_DEEP[accName]!;
     if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function' || !CSS.supports('color', 'color-mix(in srgb,#000,#fff)')) {
