@@ -179,4 +179,50 @@ describe('AI setup lifecycle', () => {
     ai.dispose();
   });
 
+  it('aborts in-flight prepareModels signal on dispose', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    vi.mocked(prepareModels).mockImplementation((_cb, signal) => {
+      capturedSignal = signal;
+      return new Promise((_, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      });
+    });
+    const ai = new AiPlayer();
+    const pending = ai.setup(() => {});
+    const rejected = expect(pending).rejects.toThrow('canceled');
+    await vi.waitFor(() => expect(capturedSignal).toBeDefined());
+    expect(capturedSignal!.aborted).toBe(false);
+    ai.dispose();
+    expect(capturedSignal!.aborted).toBe(true);
+    await rejected;
+  });
+
+  it('marks sampled pass moves with isPass: true even when engineBest is a board move', async () => {
+    vi.mocked(prepareModels).mockResolvedValue(result());
+    const ai = new AiPlayer();
+    await ai.setup(() => {});
+    const client = vi.mocked(KataGoClient).mock.results[0]!.value;
+    const humanPolicy = new Float32Array(82);
+    humanPolicy[20] = 1;
+    client.analyze.mockResolvedValue({
+      humanPolicy,
+      ownership: new Float32Array(81),
+      rootScoreLead: 0,
+      moves: [
+        { order: 0, x: 2, y: 2, playSelectionValue: 0, visits: 0, utility: 0 },
+        { order: 1, x: -1, y: -1, playSelectionValue: 100, visits: 64, utility: 0 },
+      ],
+    });
+    const mv = await ai.chooseMove({
+      difficulty: 'easy',
+      board: Array.from({ length: 9 }, () => Array(9).fill(null)),
+      currentPlayer: 'black',
+      moveHistory: [],
+      rules: 'chinese-ogs',
+      isLegal: () => true,
+    });
+    expect(mv).toEqual({ x: -1, y: -1, isPass: true });
+    ai.dispose();
+  });
+
 });

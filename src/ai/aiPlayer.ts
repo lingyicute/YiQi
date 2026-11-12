@@ -54,6 +54,7 @@ export class AiPlayer {
   private backend: string | null = null;
   private aborted = 0;
   private setupTask: Promise<void> | null = null;
+  private setupAbort: AbortController | null = null;
   private setupGeneration = 0;
   private progressListeners = new Set<SetupProgress>();
   private lastProgress: [number, number, number] | null = null;
@@ -91,6 +92,7 @@ export class AiPlayer {
     }, generation).finally(() => {
       if (generation !== this.setupGeneration) return;
       this.setupTask = null;
+      this.setupAbort = null;
       this.progressListeners = new Set();
       this.lastProgress = null;
     });
@@ -101,11 +103,13 @@ export class AiPlayer {
     this.releaseModels();
     this.status = 'downloading';
     this.lastError = null;
+    const abort = new AbortController();
+    this.setupAbort = abort;
     try {
       const backend = await preferredBackend();
       const { humanModelUrl, humanBlob, mainModelUrl } = await prepareModels((p) => {
         if (generation === this.setupGeneration) onProgress(p.receivedBytes, p.totalBytes, p.bytesPerSecond);
-      });
+      }, abort.signal);
       if (generation !== this.setupGeneration) {
         revokeModelUrl(humanModelUrl);
         revokeModelUrl(mainModelUrl);
@@ -220,9 +224,10 @@ export class AiPlayer {
       return { x: -1, y: -1, isPass: true };
     }
 
+    const boardSize = args.board.length;
     const pick = pickHumanBotMove({
-      humanPolicy: analysis.humanPolicy ?? analysis.ownership.map(() => 0),
-      boardSize: args.board.length,
+      humanPolicy: analysis.humanPolicy ?? new Float32Array(boardSize * boardSize + 1),
+      boardSize,
       engineBest,
       candidates: analysis.moves as CandidateMove[],
       playerToMove: args.currentPlayer,
@@ -230,7 +235,7 @@ export class AiPlayer {
       isLegal: args.isLegal,
     });
 
-    if (!pick) return { x: -1, y: -1, isPass: true };
+    if (!pick || pick.isPass || pick.x < 0 || pick.y < 0) return { x: -1, y: -1, isPass: true };
     if (!args.isLegal(pick.x, pick.y)) {
       // 理论上不会发生（双方超级劫实现一致）；兜底：用引擎首选，再不行就停一手
       if (engineBest && engineBest.x >= 0 && args.isLegal(engineBest.x, engineBest.y)) {
@@ -277,6 +282,8 @@ export class AiPlayer {
 
   dispose(): void {
     this.setupGeneration++;
+    this.setupAbort?.abort();
+    this.setupAbort = null;
     this.setupTask = null;
     this.cancel();
     this.releaseModels();
