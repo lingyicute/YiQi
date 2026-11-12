@@ -62,9 +62,17 @@ export class GoGame {
   /** 完整历史位置键（位置超级劫强制检查用——引擎自带检查只回看 30 手）。 */
   private _positionKeys = new Set<string>();
   private _currentPlayerCache: Player = 'black';
+  private _probeCells: Uint8Array;
+  private _probeSeen: Uint32Array;
+  private _probeQueue: Int32Array;
+  private _probeStamp = 0;
 
   constructor(size: number) {
     this.size = size;
+    const area = size * size;
+    this._probeCells = new Uint8Array(area);
+    this._probeSeen = new Uint32Array(area);
+    this._probeQueue = new Int32Array(area);
     this.engine = GoGame.createEngine(size);
     this.recordRepetition();
   }
@@ -164,48 +172,72 @@ export class GoGame {
     if (y < n - 1) { const v = board[y + 1]![x]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
     if (hasEmptyNeighbor && !hasOppNeighbor) return true;
 
-    const cells = new Uint8Array(n * n);
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) cells[j * n + i] = board[j]![i]!;
+    const area = n * n;
+    const cells = this._probeCells;
+    for (let j = 0; j < n; j++) {
+      const row = board[j]!;
+      const off = j * n;
+      for (let i = 0; i < n; i++) cells[off + i] = row[i]!;
+    }
     const at = y * n + x;
     cells[at] = me;
-    const seen = new Uint8Array(n * n);
-    let stamp = 0;
-
-    const adjacent = (idx: number): number[] => {
-      const px = idx % n, py = (idx - px) / n;
-      const out: number[] = [];
-      if (px > 0) out.push(idx - 1);
-      if (px < n - 1) out.push(idx + 1);
-      if (py > 0) out.push(idx - n);
-      if (py < n - 1) out.push(idx + n);
-      return out;
+    const seen = this._probeSeen;
+    const queue = this._probeQueue;
+    const nextStamp = (): number => {
+      if (this._probeStamp >= 0xfffffffe) {
+        seen.fill(0);
+        this._probeStamp = 0;
+      }
+      return ++this._probeStamp;
     };
-    const flood = (start: number): { stones: number[]; liberty: boolean } => {
-      const tag = ++stamp;
+    const flood = (start: number): { len: number; liberty: boolean } => {
+      const tag = nextStamp();
       const color = cells[start]!;
-      const stones = [start];
+      queue[0] = start;
       seen[start] = tag;
+      let len = 1;
       let liberty = false;
-      for (let k = 0; k < stones.length; k++) {
-        for (const nb of adjacent(stones[k]!)) {
-          const v = cells[nb]!;
+      for (let k = 0; k < len; k++) {
+        const idx = queue[k]!;
+        const px = idx % n;
+        if (px > 0) {
+          const nb = idx - 1, v = cells[nb]!;
           if (v === 0) liberty = true;
-          else if (v === color && seen[nb] !== tag) { seen[nb] = tag; stones.push(nb); }
+          else if (v === color && seen[nb] !== tag) { seen[nb] = tag; queue[len++] = nb; }
+        }
+        if (px < n - 1) {
+          const nb = idx + 1, v = cells[nb]!;
+          if (v === 0) liberty = true;
+          else if (v === color && seen[nb] !== tag) { seen[nb] = tag; queue[len++] = nb; }
+        }
+        if (idx >= n) {
+          const nb = idx - n, v = cells[nb]!;
+          if (v === 0) liberty = true;
+          else if (v === color && seen[nb] !== tag) { seen[nb] = tag; queue[len++] = nb; }
+        }
+        if (idx < area - n) {
+          const nb = idx + n, v = cells[nb]!;
+          if (v === 0) liberty = true;
+          else if (v === color && seen[nb] !== tag) { seen[nb] = tag; queue[len++] = nb; }
         }
       }
-      return { stones, liberty };
+      return { len, liberty };
     };
 
     let captured = false;
     if (hasOppNeighbor) {
-      for (const nb of adjacent(at)) {
-        if (cells[nb] !== opp) continue; // 已被提走的对方棋串此时为 0，自然跳过
+      const checkCapture = (nb: number): void => {
+        if (cells[nb] !== opp) return; // 已被提走的对方棋串此时为 0，自然跳过
         const group = flood(nb);
         if (!group.liberty) {
           captured = true;
-          for (const idx of group.stones) cells[idx] = 0;
+          for (let k = 0; k < group.len; k++) cells[queue[k]!] = 0;
         }
-      }
+      };
+      if (x > 0) checkCapture(at - 1);
+      if (x < n - 1) checkCapture(at + 1);
+      if (y > 0) checkCapture(at - n);
+      if (y < n - 1) checkCapture(at + n);
     }
     if (!hasEmptyNeighbor && !captured && !flood(at).liberty) return false;
 
