@@ -89,4 +89,42 @@ describe('KataGoClient lifecycle', () => {
     expect((await second).rootVisits).toBe(requests[1].id);
     client.dispose();
   });
+
+  it('cancel during arrayBuffer read keeps prepareQueue serialized for the next request', async () => {
+    const client = new KataGoClient();
+    let releaseFirstRead!: (buf: ArrayBuffer) => void;
+    let inFlightReads = 0;
+    let maxConcurrentReads = 0;
+    let calls = 0;
+    const provider = vi.fn(() => ({
+      arrayBuffer: () => {
+        calls++;
+        inFlightReads++;
+        maxConcurrentReads = Math.max(maxConcurrentReads, inFlightReads);
+        if (calls === 1) {
+          return new Promise<ArrayBuffer>(r => { releaseFirstRead = buf => { inFlightReads--; r(buf); }; });
+        }
+        inFlightReads--;
+        return Promise.resolve(new Uint8Array([1, 2, 3]).buffer);
+      },
+    } as unknown as Blob));
+    const first = client.analyze({ ...args, humanModelUrl: 'blob:human', humanModelBlobProvider: provider });
+    const rejected = expect(first).rejects.toThrow('canceled');
+    await flush();
+    expect(calls).toBe(1);
+    client.cancel();
+    const second = client.analyze({ ...args, humanModelUrl: 'blob:human', humanModelBlobProvider: provider });
+    await flush();
+    expect(calls).toBe(1);
+    releaseFirstRead(new Uint8Array([9]).buffer);
+    await rejected;
+    await flush();
+    expect(calls).toBe(2);
+    expect(maxConcurrentReads).toBe(1);
+    const posted = FakeWorker.current.postMessage.mock.calls.filter(([msg]) => msg.type === 'katago:analyze');
+    expect(posted).toHaveLength(1);
+    FakeWorker.current.message({ type: 'katago:analyze_result', id: posted[0]![0].id, ok: true, analysis: { rootVisits: 64 } });
+    expect((await second).rootVisits).toBe(64);
+    client.dispose();
+  });
 });
