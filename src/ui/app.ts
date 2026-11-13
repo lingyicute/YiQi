@@ -364,6 +364,8 @@ class App {
         console.warn('[yiqi] AI 落子被拒绝，改为停一手', mv);
         this.commitMove(-1, -1);
         this.toast('AI 落子无效，已改为停一手');
+      } else if (mv.isPass && this.phase === 'play') {
+        this.toast('AI 选择停一手');
       }
       if (this.phase === 'play' && !this.over) void this.maybeAI();
     } catch (err) {
