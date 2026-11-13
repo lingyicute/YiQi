@@ -36,14 +36,11 @@ export class IllegalMoveError extends Error {
   }
 }
 
-function classifyEngineError(err: unknown): RuleErrorCode {
-  const msg = err instanceof Error ? err.message : String(err);
-  if (msg.includes('stone_already_placed_here')) return 'occupied';
-  if (msg.includes('illegal_self_capture') || msg.includes('move is suicide')) return 'suicide';
-  if (msg.includes('illegal_board_repetition') || msg.includes('superko') || msg.includes('repeating')) return 'superko';
-  if (msg.includes('illegal_ko_move') || msg.includes('ko')) return 'ko';
-  if (msg.includes('out of bounds')) return 'out_of_bounds';
-  return 'unknown';
+function illegalMoveMessage(code: RuleErrorCode): string {
+  if (code === 'out_of_bounds') return '落点超出棋盘';
+  if (code === 'occupied') return '此处已有棋子';
+  if (code === 'ko' || code === 'superko') return '违反规则：全局同形再现（打劫需先寻劫）';
+  return '违反规则：禁着点（自杀或全局同形）';
 }
 
 export interface ScoreSummary {
@@ -61,6 +58,8 @@ export class GoGame {
   private _repetitionKeys = new Set<string>();
   /** 完整历史位置键（位置超级劫强制检查用——引擎自带检查只回看 30 手）。 */
   private _positionKeys = new Set<string>();
+  private _lastPosKey = '';
+  private _prevPosKey = '';
   private _currentPlayerCache: Player = 'black';
   private _probeCells: Uint8Array;
   private _probeSeen: Uint32Array;
@@ -127,27 +126,13 @@ export class GoGame {
 
   /** 落子。非法时抛 IllegalMoveError，棋盘状态不变。 */
   place(x: number, y: number): void {
-    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= this.size || y >= this.size) {
-      throw new IllegalMoveError('out_of_bounds', '落点超出棋盘');
+    const probe = this.probeMove(x, y);
+    if (probe.code !== null) {
+      throw new IllegalMoveError(probe.code, illegalMoveMessage(probe.code));
     }
-    if (this.engine.board[y]![x] !== 0) {
-      throw new IllegalMoveError('occupied', '此处已有棋子');
-    }
-    try {
-      // 显式开启简单劫与全同形检查（引擎默认不抛错）
-      this.engine.place(x, y, true, true);
-    } catch (err) {
-      throw new IllegalMoveError(classifyEngineError(err), describeIllegal(this, x, y));
-    }
+    this.engine.place(x, y, false, false, true, true);
     this._moves.push({ x, y });
-    // 完整历史的位置超级劫检查（引擎自带检查只回看 30 手，此处覆盖全局）
-    const posKey = positionalKeyOfBoard(this.engine.board, this.size);
-    if (this._positionKeys.has(posKey)) {
-      this._moves.pop();
-      this.resetToMoves(this._moves);
-      throw new IllegalMoveError('superko', '违反规则：全局同形再现（打劫需先寻劫）');
-    }
-    this.recordRepetition(posKey);
+    this.recordRepetition(probe.posKey);
   }
 
   /**
@@ -156,10 +141,16 @@ export class GoGame {
    */
   isLegal(x: number, y: number): boolean {
     if (x === -1 && y === -1) return true;
+    return this.probeMove(x, y).code === null;
+  }
+
+  private probeMove(x: number, y: number): { code: RuleErrorCode | null; posKey?: string } {
     const n = this.size;
-    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= n || y >= n) return false;
+    if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= n || y >= n) {
+      return { code: 'out_of_bounds' };
+    }
     const board = this.engine.board;
-    if (board[y]![x] !== 0) return false;
+    if (board[y]![x] !== 0) return { code: 'occupied' };
     const me = this._currentPlayerCache === 'black' ? 1 : 2;
     const opp = 3 - me;
 
@@ -170,7 +161,7 @@ export class GoGame {
     if (x < n - 1) { const v = board[y]![x + 1]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
     if (y > 0) { const v = board[y - 1]![x]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
     if (y < n - 1) { const v = board[y + 1]![x]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
-    if (hasEmptyNeighbor && !hasOppNeighbor) return true;
+    if (hasEmptyNeighbor && !hasOppNeighbor) return { code: null };
 
     const area = n * n;
     const cells = this._probeCells;
@@ -224,13 +215,13 @@ export class GoGame {
       return { len, liberty };
     };
 
-    let captured = false;
+    let capturedCount = 0;
     if (hasOppNeighbor) {
       const checkCapture = (nb: number): void => {
         if (cells[nb] !== opp) return; // 已被提走的对方棋串此时为 0，自然跳过
         const group = flood(nb);
         if (!group.liberty) {
-          captured = true;
+          capturedCount += group.len;
           for (let k = 0; k < group.len; k++) cells[queue[k]!] = 0;
         }
       };
@@ -239,20 +230,26 @@ export class GoGame {
       if (y > 0) checkCapture(at - n);
       if (y < n - 1) checkCapture(at + n);
     }
-    if (!hasEmptyNeighbor && !captured && !flood(at).liberty) return false;
+    if (!hasEmptyNeighbor && capturedCount === 0 && !flood(at).liberty) {
+      return { code: 'suicide' };
+    }
 
     // 未提子的着法不可能重现历史局面（当前全盘棋子仍在，历史局面不可能恰好
     // 多出落点这一子——提走它的那串“最后一手”必然留存至今，构成矛盾），
     // 因此多数探测无需构造局面键。
-    if (!captured) return true;
-    return !this._positionKeys.has(positionalKeyOfCells(cells, n));
+    if (capturedCount === 0) return { code: null };
+    const posKey = positionalKeyOfCells(cells, n);
+    if (this._positionKeys.has(posKey)) {
+      return { code: capturedCount === 1 && posKey === this._prevPosKey ? 'ko' : 'superko' };
+    }
+    return { code: null, posKey };
   }
 
   /** 停一手。 */
   pass(): void {
     this.engine.place(-1, -1);
     this._moves.push({ x: -1, y: -1 });
-    this.recordRepetition();
+    this.recordRepetition(this._lastPosKey);
   }
 
   /** 撤回最近 n 手（默认 1），通过重放着法序列重建引擎，保证状态一致。 */
@@ -274,6 +271,8 @@ export class GoGame {
     this._moves = next._moves;
     this._repetitionKeys = next._repetitionKeys;
     this._positionKeys = next._positionKeys;
+    this._lastPosKey = next._lastPosKey;
+    this._prevPosKey = next._prevPosKey;
     this._currentPlayerCache = next._currentPlayerCache;
   }
 
@@ -312,7 +311,9 @@ export class GoGame {
 
   private recordRepetition(posKey?: string): void {
     this._currentPlayerCache = this._moves.length % 2 === 0 ? 'black' : 'white';
-    const key = posKey ?? positionalKeyOfBoard(this.engine.board, this.size);
+    const key = posKey || positionalKeyOfBoard(this.engine.board, this.size);
+    this._prevPosKey = this._lastPosKey;
+    this._lastPosKey = key;
     this._repetitionKeys.add(situationalKeyFromPositional(key, this._currentPlayerCache));
     this._positionKeys.add(key);
   }
@@ -455,9 +456,4 @@ function positionalKeyOfCells(cells: Uint8Array, size: number): string {
   }
   if (count > 0) key += String.fromCharCode(65 + packed * 3 ** (3 - count));
   return key;
-}
-
-function describeIllegal(game: GoGame, x: number, y: number): string {
-  if (game.board[y]![x] !== 0) return '此处已有棋子';
-  return '违反规则：禁着点（自杀或全局同形）';
 }

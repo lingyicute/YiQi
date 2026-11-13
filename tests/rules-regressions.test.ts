@@ -69,6 +69,26 @@ describe('规则边界与导出回归', () => {
     expect(ko.isLegal(0, 0)).toBe(true);
   });
 
+  it('超过 30 手的全局同形拒绝时不更换棋盘引用且保留死子标记', () => {
+    const game = new GoGame(9);
+    for (const [x, y] of [[2, 0], [1, 0], [2, 2], [1, 2], [3, 1], [2, 1], [8, 8], [0, 1]] as const) {
+      game.place(x, y);
+    }
+    game.place(1, 1); // 黑提白 (2,1)
+    for (let i = 0; i < 34; i++) game.pass(); // 超出底层引擎 30 手回看窗口，仍轮到白
+    game.setGroupRemoved(8, 8, true);
+    const boardRef = game.board;
+    let code: string | null = null;
+    try {
+      game.place(2, 1);
+    } catch (err) {
+      code = (err as IllegalMoveError).code;
+    }
+    expect(code).toBe('superko');
+    expect(game.board).toBe(boardRef);
+    expect(game.isRemoved(8, 8)).toBe(true);
+  });
+
   it.each([1, 7, 2026])('isLegal 与 place 的判定一致（9 路随机对局，seed %i）', (seed) => {
     const game = new GoGame(9);
     let state = seed;
