@@ -752,7 +752,10 @@ async function handleMessage(msg: KataGoWorkerRequest): Promise<void> {
     }
     const humanMovePriors = humanLogits ? softmaxOverBoard(humanLogits) : null;
 
-    const repetitionKey = [...new Set(msg.repetitionHistory ?? [])].sort().join(';');
+    const repetitionKey =
+      typeof msg.positionId === 'string'
+        ? [...new Set(msg.repetitionHistory ?? [])].sort().join(';')
+        : '';
     const canReuse =
       msg.reuseTree === true &&
       typeof msg.positionId === 'string' &&
