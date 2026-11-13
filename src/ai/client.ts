@@ -177,7 +177,6 @@ export class KataGoClient {
       pending.reject(new Error('canceled'));
     }
     this.pendingAnalyze.clear();
-    this.prepareQueue = Promise.resolve();
   }
 
   dispose(): void {
