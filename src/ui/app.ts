@@ -58,6 +58,7 @@ class App {
 
   ai = new AiPlayer();
   aiDownloadDismissed = false;
+  private lastTurnHtml = '';
   private lastAnalyzedBoards: { prev: number[][] | null; prev2: number[][] | null } = { prev: null, prev2: null };
 
   constructor() {
@@ -129,7 +130,11 @@ class App {
         html = dot(toMove) + `<span>${this.aiThinking ? 'AI 思考中…' : 'AI 回合'}</span>`;
       }
     }
-    tv.innerHTML = html;
+    // 该节点是 aria-live 区域：内容未变时不重写，避免读屏重复播报
+    if (html !== this.lastTurnHtml) {
+      this.lastTurnHtml = html;
+      tv.innerHTML = html;
+    }
 
     const humanTurn = !this.over && this.phase === 'play' && (this.mode === 'pvp' || (this.game.playerToMove === 'black' ? BLACK : WHITE) === this.humanColor);
     ($('btnUndo') as HTMLButtonElement).disabled = this.aiThinking || this.phase === 'scoring' || this.game.moveNumber === 0;
@@ -772,7 +777,16 @@ class App {
       this.dialogCloseTimer = null;
       $('scrim').classList.remove('closing');
     }
-    $('dialog').innerHTML = html;
+    const dialog = $('dialog');
+    dialog.innerHTML = html;
+    // 为屏幕阅读器提供对话框名称
+    const heading = dialog.querySelector('.dlg-title');
+    if (heading) {
+      heading.id = 'dlgTitle';
+      dialog.setAttribute('aria-labelledby', 'dlgTitle');
+    } else {
+      dialog.removeAttribute('aria-labelledby');
+    }
     $('scrim').hidden = false;
     this.dialogOpen = true;
     const btn = $('dialog').querySelector('.btn-pill.primary');
