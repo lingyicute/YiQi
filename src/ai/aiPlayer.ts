@@ -206,15 +206,15 @@ export class AiPlayer {
     let analysis: KataGoAnalysisPayload | null = null;
     try {
       analysis = await this.client.analyze(analyzeArgs);
+      if (analysis.humanPolicy && this.humanBlob) {
+        // Worker 确认人类网络可用后立即释放百兆 Blob，即使本手随后被取消也无需保留。
+        this.humanBlob = null;
+        if (this.humanModelUrl) revokeModelUrl(this.humanModelUrl);
+      }
     } finally {
       if (this.aborted !== token) throw new Error('canceled');
     }
     if (!analysis) throw new Error('AI 分析失败');
-    if (analysis.humanPolicy && this.humanBlob) {
-      // Worker 确认人类网络可用后才释放百兆 Blob；失败/取消时仍可重试。
-      this.humanBlob = null;
-      if (this.humanModelUrl) revokeModelUrl(this.humanModelUrl);
-    }
 
     this.lastScoreLead = analysis.rootScoreLead;
 
