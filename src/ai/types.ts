@@ -14,6 +14,7 @@ export type GameRules =
   | 'japanese'
   | 'chinese'
   | 'chinese-ogs'
+  | 'chinese-kgs'
   | 'korean'
   | 'aga'
   | 'new-zealand'
