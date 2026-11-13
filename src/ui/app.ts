@@ -771,12 +771,14 @@ class App {
 
   openDialog(html: string): void {
     const rev = ++this.dialogRevision;
+    const scrim = $('scrim');
     $('btnPalette').classList.remove('active');
     if (this.dialogCloseTimer !== null) {
       window.clearTimeout(this.dialogCloseTimer);
       this.dialogCloseTimer = null;
-      $('scrim').classList.remove('closing');
+      scrim.classList.remove('closing');
     }
+    scrim.style.pointerEvents = '';
     const dialog = $('dialog');
     dialog.innerHTML = html;
     // 为屏幕阅读器提供对话框名称
@@ -787,11 +789,11 @@ class App {
     } else {
       dialog.removeAttribute('aria-labelledby');
     }
-    $('scrim').hidden = false;
+    scrim.hidden = false;
     this.dialogOpen = true;
-    const btn = $('dialog').querySelector('.btn-pill.primary');
+    const btn = dialog.querySelector<HTMLElement>('.btn-pill.primary, .swatch.sel, button:not(:disabled)');
     if (btn) setTimeout(() => {
-      if (this.dialogOpen && this.dialogRevision === rev) (btn as HTMLElement).focus();
+      if (this.dialogOpen && this.dialogRevision === rev) btn.focus();
     }, 30);
   }
 
@@ -801,10 +803,14 @@ class App {
     this.dialogRevision++;
     this.dialogOpen = false;
     $('btnPalette').classList.remove('active');
+    const active = document.activeElement as HTMLElement | null;
+    if (active && $('dialog').contains(active)) active.blur();
+    scrim.style.pointerEvents = 'none';
     // 播放收起动画后再隐藏（与 up/fade 进场对称）
     scrim.classList.add('closing');
     this.dialogCloseTimer = window.setTimeout(() => {
       this.dialogCloseTimer = null;
+      scrim.style.pointerEvents = '';
       scrim.classList.remove('closing');
       scrim.hidden = true;
     }, 170);

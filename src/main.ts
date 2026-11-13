@@ -58,9 +58,10 @@ menu.addEventListener('click', (e) => {
 /* ================= 对话框 ================= */
 const scrim = $('scrim');
 scrim.addEventListener('click', (e) => {
-  if (e.target === scrim) app.closeDialog();
+  if (e.target === scrim && app.dialogOpen) app.closeDialog();
 });
 $('dialog').addEventListener('click', (e) => {
+  if (!app.dialogOpen) return;
   const target = e.target as HTMLElement;
   const sw = target.closest('.swatch');
   if (sw) {
@@ -217,7 +218,31 @@ function tryPlaceFromEvent(e: PointerEvent): void {
 document.addEventListener('keydown', (e) => {
   if (e.isComposing) return;
   if (app.dialogOpen) {
-    if (e.key === 'Escape') app.closeDialog();
+    if (e.key === 'Escape') {
+      app.closeDialog();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const focusables = Array.from(
+        $('dialog').querySelectorAll<HTMLElement>('button:not(:disabled),[href],[tabindex]:not([tabindex="-1"])'),
+      ).filter((el) => el.offsetParent !== null);
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const first = focusables[0]!;
+      const last = focusables[focusables.length - 1]!;
+      const activeEl = document.activeElement as HTMLElement | null;
+      if (e.shiftKey) {
+        if (!activeEl || !focusables.includes(activeEl) || activeEl === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (!activeEl || !focusables.includes(activeEl) || activeEl === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
     return;
   }
   const k = e.key;
