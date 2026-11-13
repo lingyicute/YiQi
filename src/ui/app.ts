@@ -1002,10 +1002,10 @@ class App {
   private paintDownload(received: number, total: number, speed: number): void {
     const percent = document.getElementById('dlPercent'), speedLabel = document.getElementById('dlSpeed');
     const bytes = document.getElementById('dlBytes'), fill = document.getElementById('dlBarFill');
-    const pct = Math.min(99, Math.floor((received / total) * 100));
+    const pct = total > 0 ? Math.min(99, Math.floor((received / total) * 100)) : 0;
     if (percent) percent.textContent = pct + '%';
     if (fill) fill.style.width = pct + '%';
-    if (received >= total) {
+    if (total > 0 && received >= total) {
       // 字节已下完，进入引擎初始化（耗时阶段）
       if (speedLabel) speedLabel.textContent = '';
       if (bytes) bytes.textContent = '正在初始化 AI 引擎…';
@@ -1049,7 +1049,7 @@ class App {
       if (speedLabel) speedLabel.textContent = '';
       if (bytes) bytes.textContent = '';
       await new Promise((r) => setTimeout(r, 120));
-      if (document.getElementById('dlProgress')) this.closeDialog();
+      if (this.dialogOpen && document.getElementById('dlProgress')) this.closeDialog();
       this.updateAILock();
       this.toast('AI 模型已就绪，开始人机对战吧');
       void this.maybeAI();
@@ -1059,7 +1059,7 @@ class App {
       console.error('[yiqi] 模型下载失败', err);
       const bytes = document.getElementById('dlBytes'), speedLabel = document.getElementById('dlSpeed');
       const btn = document.getElementById('btnStartDl');
-      if (!speedLabel) this.toast('模型下载失败：' + msg);
+      if (!(this.dialogOpen && speedLabel)) this.toast('模型下载失败：' + msg);
       if (bytes) bytes.textContent = '';
       if (speedLabel) speedLabel.textContent = '下载失败：' + msg;
       if (btn) {
