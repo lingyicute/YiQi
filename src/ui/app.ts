@@ -705,6 +705,11 @@ class App {
     if (!(await wasmSupported())) {
       this.wasmUnsupported = true;
       this.aiDownloadDismissed = true;
+      // AI 永远无法就绪：留在人机模式（含默认的「困难」与恢复的存档）会在 AI 回合无限等待
+      if (this.mode.startsWith('ai-')) {
+        this.setMode('pvp', { toast: false });
+        this.toast('当前浏览器不支持 WASM，已切换到双人对战');
+      }
       this.updateAILock();
       return;
     }
