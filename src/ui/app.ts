@@ -921,7 +921,7 @@ class App {
   showPalette(): void {
     const cur = document.documentElement.dataset.accent;
     const sw = Object.entries(ACCENTS).map(([k, c]) => `
-      <button class="swatch ${k === cur ? 'sel' : ''}" data-accent="${k}" style="background:${c};color:${c}" title="${k}">
+      <button class="swatch ${k === cur ? 'sel' : ''}" data-accent="${k}" aria-pressed="${k === cur}" style="background:${c};color:${c}" title="${k}">
         ${k === cur ? '<svg class="ck" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.8l4.8 4.7L19.5 6.8"/></svg>' : ''}
       </button>`).join('');
     this.openDialog(`
