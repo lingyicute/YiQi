@@ -143,6 +143,11 @@ let touchTap: { x0: number; y0: number; id: number } | null = null;
 const activeTouches = new Set<number>();
 const TAP_SLOP2 = 12 * 12;
 
+function clearTouches(): void {
+  activeTouches.clear();
+  touchTap = null;
+}
+
 canvas.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'touch') {
     activeTouches.add(e.pointerId);
@@ -170,22 +175,32 @@ canvas.addEventListener('pointermove', (e) => {
   app.renderer.hover = c;
   if (changed) app.renderer.scheduleDraw();
 });
-canvas.addEventListener('pointerup', (e) => {
-  if (e.pointerType !== 'touch') return;
+window.addEventListener('pointerup', (e) => {
+  if (e.pointerType !== 'touch' || !activeTouches.has(e.pointerId)) return;
   activeTouches.delete(e.pointerId);
   if (touchTap && e.pointerId === touchTap.id && activeTouches.size === 0) {
+    const dx = e.clientX - touchTap.x0;
+    const dy = e.clientY - touchTap.y0;
     touchTap = null;
-    canvas.focus({ preventScroll: true });
-    tryPlaceFromEvent(e);
+    if (dx * dx + dy * dy <= TAP_SLOP2 && e.target === canvas) {
+      canvas.focus({ preventScroll: true });
+      tryPlaceFromEvent(e);
+    }
   }
 });
-canvas.addEventListener('pointercancel', (e) => {
+window.addEventListener('pointercancel', (e) => {
   if (e.pointerType === 'touch') {
     activeTouches.delete(e.pointerId);
     if (touchTap && e.pointerId === touchTap.id) touchTap = null;
   }
 });
-canvas.addEventListener('pointerleave', () => { app.renderer.hover = null; app.renderer.scheduleDraw(); });
+window.addEventListener('blur', clearTouches);
+canvas.addEventListener('pointerleave', () => {
+  if (app.renderer.hover !== null) {
+    app.renderer.hover = null;
+    app.renderer.scheduleDraw();
+  }
+});
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
 function tryPlaceFromEvent(e: PointerEvent): void {
@@ -266,8 +281,12 @@ window.addEventListener('resize', () => app.renderer.onResize());
 window.addEventListener('orientationchange', () => setTimeout(() => app.renderer.fitBoard(), 120));
 window.addEventListener('beforeunload', () => app.saveSession());
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) app.saveSession();
-  else app.syncTimer();
+  if (document.hidden) {
+    clearTouches();
+    app.saveSession();
+  } else {
+    app.syncTimer();
+  }
 });
 
 app.init();
