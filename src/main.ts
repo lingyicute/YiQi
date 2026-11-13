@@ -12,26 +12,33 @@ const app = new App();
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const canvas = $('board') as HTMLCanvasElement;
 const menu = $('menu');
+const btnMenu = $('btnMenu');
+btnMenu.setAttribute('aria-haspopup', 'true');
+btnMenu.setAttribute('aria-controls', 'menu');
+btnMenu.setAttribute('aria-expanded', 'false');
+
+function setMenuOpen(open: boolean): void {
+  menu.classList.toggle('open', open);
+  btnMenu.classList.toggle('active', open);
+  btnMenu.setAttribute('aria-expanded', String(open));
+}
+
+function closeMenu(): void {
+  setMenuOpen(false);
+}
 
 /* ================= 顶栏 ================= */
 $('btnTheme').addEventListener('click', () => app.toggleTheme());
 $('btnPalette').addEventListener('click', () => app.showPalette());
-$('btnMenu').addEventListener('click', (e) => {
+btnMenu.addEventListener('click', (e) => {
   e.stopPropagation();
-  menu.classList.toggle('open');
-  $('btnMenu').classList.toggle('active', menu.classList.contains('open'));
+  setMenuOpen(!menu.classList.contains('open'));
 });
 document.addEventListener('click', (e) => {
   if (menu.classList.contains('open') && !(e.target as HTMLElement).closest('.menu-wrap')) {
-    menu.classList.remove('open');
-    $('btnMenu').classList.remove('active');
+    closeMenu();
   }
 });
-
-function closeMenu(): void {
-  menu.classList.remove('open');
-  $('btnMenu').classList.remove('active');
-}
 
 menu.addEventListener('click', (e) => {
   const item = (e.target as HTMLElement).closest('.menu-item');
@@ -249,7 +256,7 @@ document.addEventListener('keydown', (e) => {
   if (menu.classList.contains('open')) {
     if (k === 'Escape') {
       closeMenu();
-      $('btnMenu').focus();
+      btnMenu.focus();
     }
     return;
   }
