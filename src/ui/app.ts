@@ -234,12 +234,16 @@ class App {
 
   private snapshotBoards(): void {
     // 重放着法序列，得到当前局面的前一/前二手棋盘（NN 特征层需要）
+    // 只复制最后两手之前的棋盘，避免长棋谱每手都分配一份整盘拷贝
     const replay = new GoGame(this.game.size);
+    const moves = this.game.moves;
+    const len = moves.length;
     let prev2: number[][] | null = null;
     let prev: number[][] | null = null;
-    for (const m of this.game.moves) {
-      prev2 = prev;
-      prev = replay.board.map((r) => r.slice());
+    for (let i = 0; i < len; i++) {
+      if (i === len - 2) prev2 = replay.board.map((r) => r.slice());
+      else if (i === len - 1) prev = replay.board.map((r) => r.slice());
+      const m = moves[i]!;
       if (m.x === -1) replay.pass();
       else replay.place(m.x, m.y);
     }
