@@ -148,7 +148,14 @@ export async function prepareModels(
   const mainBlob = await loadModelFile(cache, withBase(MAIN_MODEL_PATH), MAIN_MODEL_TOTAL_BYTES, (got) => {
     counters.main += got;
     report();
-  }, signal);
+  }, signal, async (blob) => {
+    // 主模型过去只校验 gzip 字节数，同尺寸损坏会在 Worker 初始化时反复失败。
+    // 在写缓存/返回缓存前验证解压流和原始大小，让下一次加载能够自动重下。
+    const raw = await gunzipBlob(blob);
+    if (raw.size !== MAIN_MODEL_RAW_BYTES) {
+      throw new Error(`主模型解压结果异常：${raw.size}B，期望 ${MAIN_MODEL_RAW_BYTES}B`);
+    }
+  });
   signal?.throwIfAborted();
   const humanModelUrl = URL.createObjectURL(humanRaw);
   try {

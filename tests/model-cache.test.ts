@@ -56,4 +56,26 @@ describe('model cache validation', () => {
     await expect(loadModelFile(null, url, 4, () => {})).rejects.toThrow();
     expect(cancel).toHaveBeenCalled();
   });
+  it('evicts same-size cached content that fails validation and downloads a replacement', async () => {
+    const cache = cached('bad!');
+    const fetch = vi.fn(async () => new Response('good'));
+    vi.stubGlobal('fetch', fetch);
+    const validate = vi.fn(async (blob: Blob) => {
+      if (await blob.text() !== 'good') throw new Error('bad checksum');
+    });
+    const blob = await loadModelFile(cache as unknown as Cache, url, 4, () => {}, undefined, validate);
+    expect(await blob.text()).toBe('good');
+    expect(cache.delete).toHaveBeenCalledWith(url);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(validate).toHaveBeenCalledTimes(2);
+    expect(cache.put).toHaveBeenCalledTimes(1);
+  });
+  it('never caches downloaded content that fails validation', async () => {
+    const cache = cached();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('bad!')));
+    await expect(loadModelFile(cache as unknown as Cache, url, 4, () => {}, undefined, () => {
+      throw new Error('bad checksum');
+    })).rejects.toThrow('bad checksum');
+    expect(cache.put).not.toHaveBeenCalled();
+  });
 });
