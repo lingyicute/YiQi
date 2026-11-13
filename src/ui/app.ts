@@ -259,7 +259,7 @@ class App {
   }
 
   /** 落子（已通过规则校验后调用）。 */
-  private commitMove(x: number, y: number, silent = false): void {
+  private commitMove(x: number, y: number, silent = false): boolean {
     const color = this.game.playerToMove === 'black' ? BLACK : WHITE;
     const previous = this.game.board.map(row => row.slice());
     try {
@@ -270,7 +270,7 @@ class App {
         // 超级劫拒绝时 GoGame 内部会重建引擎，board 数组引用已更换，必须重新同步渲染器
         this.syncBoard();
         this.toast(illegalMessage(err.code));
-        return;
+        return false;
       }
       throw err;
     }
@@ -286,6 +286,7 @@ class App {
     this.updateHUD();
     this.saveSession();
     this.renderer.scheduleDraw();
+    return true;
   }
 
   /** 人类落子入口。 */
@@ -358,7 +359,12 @@ class App {
       });
       if (token !== this.aiToken || this.over || this.phase !== 'play') return;
       this.aiThinking = false;
-      this.commitMove(mv.x, mv.y);
+      if (!this.commitMove(mv.x, mv.y)) {
+        // 落子被规则层拒绝时棋盘未变，若再次请求 AI 会反复得到同一结果而死循环；停一手恒合法
+        console.warn('[yiqi] AI 落子被拒绝，改为停一手', mv);
+        this.commitMove(-1, -1);
+        this.toast('AI 落子无效，已改为停一手');
+      }
       if (this.phase === 'play' && !this.over) void this.maybeAI();
     } catch (err) {
       if (token !== this.aiToken) return;
