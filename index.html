@@ -85,7 +85,7 @@ if(typeof a==='string'&&/^(purple|blue|teal|green|yellow|orange|pink|red)$/.test
       <div class="stats-row">
         <div class="stat-card">
           <div class="stat-label" id="moveLabel">第 1 手</div>
-          <div class="stat-value" id="turnValue"><span class="stone-dot black"></span><span>你的回合</span></div>
+          <div class="stat-value" id="turnValue" aria-live="polite"><span class="stone-dot black"></span><span>你的回合</span></div>
         </div>
         <div class="stat-card accent">
           <div class="stat-label">用时</div>
@@ -159,7 +159,7 @@ if(typeof a==='string'&&/^(purple|blue|teal|green|yellow|orange|pink|red)$/.test
 <div class="scrim" id="scrim" hidden>
   <div class="dialog" id="dialog" role="dialog" aria-modal="true"></div>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
