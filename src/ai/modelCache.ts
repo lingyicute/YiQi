@@ -1,10 +1,13 @@
 /** 缓存只是加速手段：读取失败或损坏时重新下载，校验成功后才写入。 */
+export type ModelValidator = (blob: Blob) => void | Promise<void>;
+
 export async function loadModelFile(
   cache: Cache | null,
   url: string,
   expectedBytes: number,
   onChunk: (bytes: number) => void,
   signal?: AbortSignal,
+  validate?: ModelValidator,
 ): Promise<Blob> {
   signal?.throwIfAborted();
   if (cache) {
@@ -14,10 +17,22 @@ export async function loadModelFile(
         const blob = await hit.blob();
         signal?.throwIfAborted();
         if (blob.size === expectedBytes) {
-          onChunk(blob.size);
-          return blob;
+          let valid = true;
+          try {
+            await validate?.(blob);
+          } catch {
+            valid = false;
+            // 字节数相同也可能内容损坏；删除后走网络，而不是反复使用坏缓存。
+            try { await cache.delete(url); } catch { /* 下载仍可作为降级路径 */ }
+          }
+          signal?.throwIfAborted();
+          if (valid) {
+            onChunk(blob.size);
+            return blob;
+          }
+        } else {
+          await cache.delete(url);
         }
-        await cache.delete(url);
       }
     } catch {
       signal?.throwIfAborted();
@@ -56,6 +71,8 @@ export async function loadModelFile(
   if (blob.size !== expectedBytes) {
     throw new Error(`模型体积异常：${blob.size}B，期望 ${expectedBytes}B（${url}）`);
   }
+  await validate?.(blob);
+  signal?.throwIfAborted();
   if (cache) {
     try {
       await cache.put(url, new Response(blob, { headers: { 'Content-Type': 'application/octet-stream' } }));
