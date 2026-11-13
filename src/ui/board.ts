@@ -163,9 +163,9 @@ export class BoardRenderer {
   eventCell(e: { clientX: number; clientY: number }): { x: number; y: number } | null {
     const rect = this.canvas.getBoundingClientRect();
     const G = this.geom();
-    if (!G.s) return null;
-    const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top;
+    if (!G.s || !rect.width || !rect.height) return null;
+    const px = (e.clientX - rect.left) * (G.s / rect.width);
+    const py = (e.clientY - rect.top) * (G.s / rect.height);
     const x = Math.round((px - G.m) / G.g);
     const y = Math.round((py - G.m) / G.g);
     const n = this.state.size;
