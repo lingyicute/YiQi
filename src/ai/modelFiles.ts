@@ -6,7 +6,8 @@
  *   以规避 Cloudflare Pages 单文件 25 MiB 上限）。前端下载时逐片拉取、
  *   拼接为 Blob URL 交给引擎 Worker（fetch 支持 blob: URL，引擎层零改动）。
  *
- * 下载结果写入 Cache Storage（'yiqi-models-v1'），长期复用、二次打开零下载。
+ * 下载结果写入 Cache Storage（CACHE_NAME），长期复用、二次打开零下载；
+ * 旧版本缓存（同前缀、不同版本号）在首次打开缓存时清理。
  */
 import pako from 'pako';
 import { loadModelFile } from './modelCache';
@@ -40,9 +41,25 @@ function withBase(path: string): string {
   return base + path;
 }
 
+const CACHE_PREFIX = 'yiqi-models-';
+let staleCachesPruned = false;
+
+/** 删除旧版本的模型缓存：人类网络约百兆，升级缓存版本后不清理会长期占用配额。 */
+async function pruneStaleCaches(): Promise<void> {
+  if (staleCachesPruned) return;
+  staleCachesPruned = true;
+  try {
+    const names = await caches.keys();
+    await Promise.all(names
+      .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
+      .map((name) => caches.delete(name).catch(() => false)));
+  } catch { /* 清理失败不影响使用 */ }
+}
+
 async function openCache(): Promise<Cache | null> {
   try {
     if (typeof caches === 'undefined') return null;
+    void pruneStaleCaches();
     return await caches.open(CACHE_NAME);
   } catch {
     return null;
