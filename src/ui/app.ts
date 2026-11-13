@@ -371,7 +371,8 @@ class App {
 
   /* ================= 终局计分 ================= */
 
-  private enterScoring(autoMark = true): void {
+  /** restored：从存档恢复计分阶段（不自动判死子，也不提示「双方连续停一手」）。 */
+  private enterScoring(restored = false): void {
     this.scoringRevision++;
     this.phase = 'scoring';
     this.stopTimer();
@@ -379,7 +380,8 @@ class App {
     this.updateScoringUI();
     this.updateHUD();
     this.renderer.scheduleDraw();
-    if (autoMark && this.mode !== 'pvp' && this.ai.ready) void this.autoMarkDead();
+    if (restored) return;
+    if (this.mode !== 'pvp' && this.ai.ready) void this.autoMarkDead();
     this.toast('双方连续停一手，进入计分');
   }
 
@@ -680,7 +682,8 @@ class App {
     const scoring = ses.phase === 'scoring' || (ses.phase === undefined && this.game.consecutivePasses >= 2);
     if (scoring) {
       for (const point of ses.removed ?? []) this.game.setGroupRemoved(point % ses.size, Math.floor(point / ses.size), true);
-      this.enterScoring(false);
+      this.enterScoring(true);
+      this.toast('已恢复计分阶段，标记死子后确认结果');
     } else {
       this.startTimer();
       void this.maybeAI();
