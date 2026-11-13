@@ -129,7 +129,7 @@ $('sides').addEventListener('click', (e) => {
 $('btnUndo').addEventListener('click', () => app.undo());
 $('btnPass').addEventListener('click', () => {
   const ok = app.humanPlace(-1, -1);
-  if (ok) app.toast('停一手' + (app.phase === 'scoring' ? '，双方连续停一手，进入计分' : ''));
+  if (ok && app.phase !== 'scoring') app.toast('停一手');
 });
 $('btnResign').addEventListener('click', () => app.requestResign());
 $('btnRestart').addEventListener('click', () => { app.newGame(); app.toast('已开始新对局'); });
@@ -255,7 +255,7 @@ document.addEventListener('keydown', (e) => {
   if (k === 'z' || k === 'Z') { app.undo(); return; }
   if (k === 'p' || k === 'P') {
     const ok = app.humanPlace(-1, -1);
-    if (ok) app.toast('停一手' + (app.phase === 'scoring' ? '，双方连续停一手，进入计分' : ''));
+    if (ok && app.phase !== 'scoring') app.toast('停一手');
     return;
   }
   if (k === 'r' || k === 'R') { app.newGame(); app.toast('已开始新对局'); }
