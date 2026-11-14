@@ -81,7 +81,11 @@ export class KataGoClient {
           return;
         }
         if (!msg.ok || !msg.analysis) pending.reject(new Error(msg.error ?? '分析失败'));
-        else pending.resolve(msg.analysis);
+        else {
+          // 人类网络失效时 Worker 仍返回主网络结果；选点将偏离所选段位，不能静默
+          if (msg.humanPolicyError) console.warn('[katago] 人类网络不可用：', msg.humanPolicyError);
+          pending.resolve(msg.analysis);
+        }
       }
     };
     this.worker.onerror = (ev) => {
