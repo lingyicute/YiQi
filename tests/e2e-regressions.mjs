@@ -210,6 +210,51 @@ try {
       assert.equal(title, transition === 'unchanged' ? '下载 AI 模型' : transition === 'replaced' ? '战绩统计' : null);
     });
   }
+  await test('Escape restores focus to the keyboard dialog opener', async page => {
+    await page.focus('#btnPalette');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.activeElement?.classList.contains('swatch'));
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'btnPalette');
+  });
+
+  await test('palette rerender keeps the original return-focus target', async page => {
+    await page.click('#btnPalette');
+    await page.click('[data-accent="teal"]');
+    await page.waitForFunction(() => document.activeElement?.classList.contains('swatch'));
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'btnPalette');
+  });
+
+  await test('a dialog opened from the closed menu returns focus to the menu button', async page => {
+    await page.click('#btnMenu');
+    await page.focus('[data-act="help"]');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.activeElement?.closest('#dialog'));
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'btnMenu');
+  });
+
+  for (const unavailable of ['removed', 'disabled']) {
+    await test(`an ${unavailable} dialog opener falls back to the board`, async page => {
+      await page.evaluate(() => {
+        const opener = document.createElement('button');
+        opener.id = 'temporaryOpener';
+        document.body.append(opener);
+        opener.focus();
+        window.yiqi.showHelp();
+      });
+      await page.waitForFunction(() => document.activeElement?.closest('#dialog'));
+      const focused = await page.evaluate(unavailable => {
+        const opener = document.getElementById('temporaryOpener');
+        if (unavailable === 'removed') opener.remove();
+        else opener.disabled = true;
+        window.yiqi.closeDialog();
+        return document.activeElement.id;
+      }, unavailable);
+      assert.equal(focused, 'board');
+    });
+  }
 } finally {
   await browser.close();
 }
