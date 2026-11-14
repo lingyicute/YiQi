@@ -3258,26 +3258,36 @@ async function evaluateBatch(args: {
     globalBatch.set(globalScratch, i * 19);
   }
 
-  const spatialTensor = tf.tensor4d(spatialBatch, [batch, BOARD_SIZE, BOARD_SIZE, 22]);
-  const globalTensor = tf.tensor2d(globalBatch, [batch, 19]);
-  const out = includeOwnership ? model.forward(spatialTensor, globalTensor) : model.forwardPolicyValue(spatialTensor, globalTensor);
+  let spatialTensor: tf.Tensor4D | null = null;
+  let globalTensor: tf.Tensor2D | null = null;
+  let out: ReturnType<KataGoModelV8Tf['forward']> | ReturnType<KataGoModelV8Tf['forwardPolicyValue']> | null = null;
+  let policyArr: Awaited<ReturnType<tf.Tensor['data']>>;
+  let passArr: Awaited<ReturnType<tf.Tensor['data']>>;
+  let valueArr: Awaited<ReturnType<tf.Tensor['data']>>;
+  let scoreArr: Awaited<ReturnType<tf.Tensor['data']>>;
+  let ownershipArr: Awaited<ReturnType<tf.Tensor['data']>> | null;
+  try {
+    spatialTensor = tf.tensor4d(spatialBatch, [batch, BOARD_SIZE, BOARD_SIZE, 22]);
+    globalTensor = tf.tensor2d(globalBatch, [batch, 19]);
+    out = includeOwnership ? model.forward(spatialTensor, globalTensor) : model.forwardPolicyValue(spatialTensor, globalTensor);
 
-  const ownershipPromise = includeOwnership && hasOwnership(out) ? out.ownership.data() : Promise.resolve(null);
-  const [policyArr, passArr, valueArr, scoreArr, ownershipArr] = await Promise.all([
-    out.policy.data(),
-    out.policyPass.data(),
-    out.value.data(),
-    out.scoreValue.data(),
-    ownershipPromise,
-  ]);
-
-  spatialTensor.dispose();
-  globalTensor.dispose();
-  out.policy.dispose();
-  out.policyPass.dispose();
-  out.value.dispose();
-  out.scoreValue.dispose();
-  if (hasOwnership(out)) out.ownership.dispose();
+    const ownershipPromise = includeOwnership && hasOwnership(out) ? out.ownership.data() : Promise.resolve(null);
+    [policyArr, passArr, valueArr, scoreArr, ownershipArr] = await Promise.all([
+      out.policy.data(),
+      out.policyPass.data(),
+      out.value.data(),
+      out.scoreValue.data(),
+      ownershipPromise,
+    ]);
+  } finally {
+    spatialTensor?.dispose();
+    globalTensor?.dispose();
+    out?.policy.dispose();
+    out?.policyPass.dispose();
+    out?.value.dispose();
+    out?.scoreValue.dispose();
+    if (out && hasOwnership(out)) out.ownership.dispose();
+  }
 
   const policyChannels = model.policyOutChannels;
   const usePolicyOptimism = policyChannels === 2 || (policyChannels === 4 && model.modelVersion >= 16);
