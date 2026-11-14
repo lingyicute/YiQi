@@ -278,8 +278,8 @@ class App {
     this.lastAnalyzedBoards = { prev: previous, prev2: this.lastAnalyzedBoards.prev };
   }
 
-  /** 落子（已通过规则校验后调用）。 */
-  private commitMove(x: number, y: number, silent = false): boolean {
+  /** 执行一手（人类或 AI）：规则校验、音效、计时、存档与界面刷新；非法时棋盘不变并提示。 */
+  private commitMove(x: number, y: number): boolean {
     const color = this.game.playerToMove === 'black' ? BLACK : WHITE;
     const previous = this.game.board.map(row => row.slice());
     try {
@@ -295,13 +295,13 @@ class App {
       throw err;
     }
     this.advanceBoards(previous);
-    if (!silent) playStoneSound(color === WHITE, this.settings.sound);
+    playStoneSound(color === WHITE, this.settings.sound);
     triggerHaptic('move');
     this.renderer.state.lastMove = { x, y, at: now() };
     if (this.game.consecutivePasses >= 2) {
       this.enterScoring();
     } else {
-      if (this.game.moveNumber > 0) this.startTimer();
+      this.startTimer();
     }
     this.updateHUD();
     this.saveSession();
@@ -314,34 +314,13 @@ class App {
     if (this.dialogOpen || this.over || this.phase !== 'play' || this.aiThinking) return false;
     if (this.mode !== 'pvp' && (this.game.playerToMove === 'black' ? BLACK : WHITE) !== this.humanColor) return false;
     if (x >= 0 && this.game.board[y]![x] !== 0) return false;
-    const moverIsBlack = this.game.playerToMove === 'black';
     this.renderer.kbdCursor = false;
-    const previous = this.game.board.map(row => row.slice());
-    try {
-      if (x === -1) this.game.pass();
-      else this.game.place(x, y);
-    } catch (err) {
-      if (err instanceof IllegalMoveError) {
-        this.syncBoard();
-        this.toast(illegalMessage(err.code));
-        this.renderer.hover = null;
-        this.renderer.scheduleDraw();
-        return false;
-      }
-      throw err;
+    if (!this.commitMove(x, y)) {
+      // 被规则拒绝：清掉悬浮预览，避免 Ghost 停留在禁着点上
+      this.renderer.hover = null;
+      this.renderer.scheduleDraw();
+      return false;
     }
-    this.advanceBoards(previous);
-    playStoneSound(!moverIsBlack, this.settings.sound);
-    triggerHaptic('move');
-    this.renderer.state.lastMove = { x, y, at: now() };
-    if (this.game.consecutivePasses >= 2) {
-      this.enterScoring();
-    } else {
-      this.startTimer();
-    }
-    this.updateHUD();
-    this.saveSession();
-    this.renderer.scheduleDraw();
     void this.maybeAI();
     return true;
   }
