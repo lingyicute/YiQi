@@ -294,12 +294,10 @@ document.addEventListener('keydown', (e) => {
     if (!app.renderer.kbdCursor) return;
     const c = { x: app.renderer.cursor.x, y: app.renderer.cursor.y };
     if (app.phase === 'scoring') { app.toggleDeadAt(c.x, c.y); return; }
-    const ok = app.humanPlace(c.x, c.y);
-    if (ok) {
-      app.renderer.kbdCursor = true;
-      app.renderer.hover = null;
-      app.renderer.scheduleDraw();
-    }
+    app.humanPlace(c.x, c.y);
+    app.renderer.kbdCursor = true;
+    app.renderer.hover = null;
+    app.renderer.scheduleDraw();
     return;
   }
   if (k === 'z' || k === 'Z') { app.undo(); return; }
