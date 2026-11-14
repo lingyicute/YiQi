@@ -255,6 +255,14 @@ try {
       assert.equal(focused, 'board');
     });
   }
+  await test('palette focuses the selected accent on open and after rerender', async page => {
+    await page.click('#btnPalette');
+    await page.waitForFunction(() => document.activeElement?.classList.contains('swatch'));
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.accent), 'teal');
+    await page.click('.swatch[data-accent="red"]');
+    await page.waitForFunction(() => document.activeElement?.classList.contains('swatch'));
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.accent), 'red');
+  }, { settings: { mode: 'pvp', boardSize: 9, sound: false, accent: 'teal' } });
 } finally {
   await browser.close();
 }
