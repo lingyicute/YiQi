@@ -263,6 +263,19 @@ try {
     await page.waitForFunction(() => document.activeElement?.classList.contains('swatch'));
     assert.equal(await page.evaluate(() => document.activeElement.dataset.accent), 'red');
   }, { settings: { mode: 'pvp', boardSize: 9, sound: false, accent: 'teal' } });
+
+  await test('shortcuts keep working while a clicked button holds focus', async page => {
+    await page.evaluate(() => { window.yiqi.humanPlace(2, 2); window.yiqi.humanPlace(3, 3); });
+    await page.click('#btnPass');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'btnPass');
+    await page.keyboard.press('z');
+    assert.equal(await page.evaluate(() => window.yiqi.game.moveNumber), 2);
+    await page.keyboard.press('ArrowDown');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'board');
+    await page.keyboard.press('Enter'); // 落子于光标处，而不是再次触发「停一手」
+    assert.equal(await page.evaluate(() => window.yiqi.game.board[1][0]), 1);
+    assert.equal(await page.evaluate(() => window.yiqi.phase), 'play');
+  });
 } finally {
   await browser.close();
 }
