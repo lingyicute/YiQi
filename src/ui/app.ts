@@ -798,7 +798,9 @@ class App {
     }
     scrim.hidden = false;
     this.dialogOpen = true;
-    const btn = dialog.querySelector<HTMLElement>('.btn-pill.primary, .swatch.sel, button:not(:disabled)');
+    // 选择器列表按 DOM 顺序匹配，并不按逗号前后的优先级；先单独查找选中配色。
+    const btn = dialog.querySelector<HTMLElement>('.swatch.sel')
+      ?? dialog.querySelector<HTMLElement>('.btn-pill.primary, button:not(:disabled)');
     if (btn) setTimeout(() => {
       if (this.dialogOpen && this.dialogRevision === rev) btn.focus();
     }, 30);
