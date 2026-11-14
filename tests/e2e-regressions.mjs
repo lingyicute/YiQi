@@ -293,6 +293,45 @@ try {
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('yiqi.session')).mode), 'pvp');
     assert.equal(await page.evaluate(() => document.getElementById('btnPass').disabled), false);
   }, { settings: { mode: 'ai-hard', boardSize: 9, sound: false }, save: { mode: 'ai-hard', side: 'W', size: 9, moves: [{ x: 2, y: 2 }, { x: 6, y: 6 }], elapsed: 5, over: false } });
+
+  await test('two-button dialogs focus the visible primary button and fall back when hidden', async page => {
+    await page.evaluate(() => {
+      window.yiqi.openDialog(
+        '<div class="dlg-title">测试</div><div class="dlg-btns"><button class="btn-pill text" data-cmd="ok">取消</button><button class="btn-pill primary" data-cmd="again">确认</button></div>',
+      );
+    });
+    await page.waitForFunction(() => document.activeElement?.dataset?.cmd === 'again');
+    await page.evaluate(() => {
+      window.yiqi.openDialog(
+        '<div class="dlg-title">进度</div><div class="dlg-btns"><button class="btn-pill text" data-cmd="skipdl">跳过</button><button class="btn-pill primary" id="btnStartDl" data-cmd="startdl">开始下载</button></div>',
+      );
+      document.getElementById('btnStartDl').style.display = 'none';
+    });
+    await page.waitForFunction(() => document.activeElement?.dataset?.cmd === 'skipdl');
+  });
+
+  await test('clicking the currently selected locked AI mode chip still opens the download dialog', async page => {
+    await page.waitForFunction(() => window.yiqi.wasmUnsupported);
+    await page.evaluate(() => { window.yiqi.mode = 'ai-hard'; });
+    await page.click('#modes .chip[data-mode="ai-hard"]');
+    await page.waitForFunction(() => window.yiqi.dialogOpen);
+    assert.equal(await page.evaluate(() => document.querySelector('.dlg-title')?.textContent), '无法启用 AI');
+  });
+
+  await test('keyboard move rejected by rules keeps the keyboard cursor visible', async page => {
+    await page.evaluate(() => {
+      const app = window.yiqi;
+      app.humanPlace(1, 0); app.humanPlace(5, 5); app.humanPlace(0, 1);
+      app.renderer.cursor = { x: 0, y: 0 };
+      app.renderer.kbdCursor = true;
+      document.getElementById('board').focus();
+    });
+    await page.keyboard.press('Enter');
+    assert.deepEqual(await page.evaluate(() => ({
+      kbdCursor: window.yiqi.renderer.kbdCursor,
+      moves: window.yiqi.game.moveNumber,
+    })), { kbdCursor: true, moves: 3 });
+  });
 } finally {
   await browser.close();
 }
