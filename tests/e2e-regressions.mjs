@@ -264,6 +264,21 @@ try {
     assert.equal(await page.evaluate(() => document.activeElement.dataset.accent), 'red');
   }, { settings: { mode: 'pvp', boardSize: 9, sound: false, accent: 'teal' } });
 
+  await test('mode, board size and side chips expose their selected state', async page => {
+    const pressed = selector => page.locator(selector).getAttribute('aria-pressed');
+    assert.equal(await pressed('#modes [data-mode="pvp"]'), 'true');
+    assert.equal(await pressed('#modes [data-mode="ai-hard"]'), 'false');
+    await page.click('#sizes [data-size="13"]');
+    assert.equal(await pressed('#sizes [data-size="13"]'), 'true');
+    assert.equal(await pressed('#sizes [data-size="9"]'), 'false');
+    await page.evaluate(() => window.yiqi.setMode('ai-hard'));
+    assert.equal(await pressed('#modes [data-mode="ai-hard"]'), 'true');
+    assert.equal(await pressed('#modes [data-mode="pvp"]'), 'false');
+    await page.click('#sides [data-side="W"]');
+    assert.equal(await pressed('#sides [data-side="W"]'), 'true');
+    assert.equal(await pressed('#sides [data-side="B"]'), 'false');
+  });
+
   await test('shortcuts keep working while a clicked button holds focus', async page => {
     await page.evaluate(() => { window.yiqi.humanPlace(2, 2); window.yiqi.humanPlace(3, 3); });
     await page.click('#btnPass');
