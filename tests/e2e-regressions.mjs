@@ -183,6 +183,33 @@ try {
     });
     assert.deepEqual(result, { matched: true, replayedOnMove: 0 });
   });
+  for (const transition of ['unchanged', 'closed', 'replaced', 'replacement closed']) {
+    await test(`pending model capability check respects dialog transition: ${transition}`, async page => {
+      await page.waitForFunction(() => window.yiqi.wasmUnsupported);
+      const title = await page.evaluate(async transition => {
+        const app = window.yiqi;
+        // Keep the capability probe pending without downloading any models.
+        Object.defineProperty(window, 'WebAssembly', { value: { instantiate: async () => ({}) } });
+        let release, requested;
+        const adapter = new Promise(resolve => { release = resolve; });
+        const started = new Promise(resolve => { requested = resolve; });
+        Object.defineProperty(navigator, 'gpu', {
+          configurable: true,
+          value: { requestAdapter: () => { requested(); return adapter; } },
+        });
+        app.showHelp();
+        const pending = app.showDownloadDialog();
+        await started;
+        if (transition === 'closed') app.closeDialog();
+        if (transition.startsWith('replace')) app.showRecords();
+        if (transition === 'replacement closed') app.closeDialog();
+        release({});
+        await pending;
+        return app.dialogOpen ? document.querySelector('.dlg-title').textContent : null;
+      }, transition);
+      assert.equal(title, transition === 'unchanged' ? '下载 AI 模型' : transition === 'replaced' ? '战绩统计' : null);
+    });
+  }
 } finally {
   await browser.close();
 }
