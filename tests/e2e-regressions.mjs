@@ -30,9 +30,11 @@ async function test(name, run, options = {}) {
 }
 
 try {
-  await test('malformed settings fall back to supported board and mode', async page => {
+  await test('malformed settings fall back to a supported board and playable mode without WASM', async page => {
+    await page.waitForFunction(() => window.yiqi.wasmUnsupported);
     assert.equal(await page.evaluate(() => window.yiqi.game.size), 19);
-    assert.equal(await page.evaluate(() => window.yiqi.mode), 'ai-hard');
+    assert.equal(await page.evaluate(() => window.yiqi.mode), 'pvp');
+    assert.equal(await page.evaluate(() => window.yiqi.settings.mode), 'pvp');
   }, { settings: { boardSize: 0, mode: '__proto__' } });
 
   await test('null move in saved JSON cannot crash startup', async page => {
