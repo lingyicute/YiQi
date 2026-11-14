@@ -766,10 +766,17 @@ class App {
   dialogOpen = false;
   private dialogCloseTimer: number | null = null;
   private dialogRevision = 0;
+  private dialogReturnFocus: HTMLElement | null = null;
 
   /* ================= 对话框 ================= */
 
   openDialog(html: string): void {
+    // 替换弹窗内容（例如切换配色）时仍保留最初的触发元素。
+    if (!this.dialogOpen) {
+      const active = document.activeElement;
+      this.dialogReturnFocus = active instanceof HTMLElement && active !== document.body && !$('dialog').contains(active)
+        ? active : null;
+    }
     const rev = ++this.dialogRevision;
     const scrim = $('scrim');
     $('btnPalette').classList.remove('active');
@@ -805,6 +812,14 @@ class App {
     $('btnPalette').classList.remove('active');
     const active = document.activeElement as HTMLElement | null;
     if (active && $('dialog').contains(active)) active.blur();
+    let returnFocus = this.dialogReturnFocus;
+    this.dialogReturnFocus = null;
+    // 菜单项在打开弹窗前已隐藏，恢复到菜单按钮；触发元素失效则回到棋盘。
+    if (returnFocus && $('menu').contains(returnFocus)) returnFocus = $('btnMenu');
+    if (!returnFocus?.isConnected || !returnFocus.getClientRects().length || returnFocus.matches(':disabled')) {
+      returnFocus = $('board');
+    }
+    returnFocus.focus({ preventScroll: true });
     scrim.style.pointerEvents = 'none';
     // 播放收起动画后再隐藏（与 up/fade 进场对称）
     scrim.classList.add('closing');
