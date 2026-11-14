@@ -401,11 +401,15 @@ async function computeHumanPolicyLogits(args: {
     outGlobal: evalGlobalV7,
   });
 
-  const spatial = tf.tensor4d(evalSpatialV7, [1, BOARD_SIZE, BOARD_SIZE, 22]);
-  const global = tf.tensor2d(evalGlobalV7, [1, 19]);
-  const meta = tf.tensor2d(metaRow, [1, metaRow.length]);
-  const out = net.forwardPolicyOnly(spatial, global, meta);
+  let spatial: tf.Tensor4D | null = null;
+  let global: tf.Tensor2D | null = null;
+  let meta: tf.Tensor2D | null = null;
+  let out: ReturnType<KataGoModelV8Tf['forwardPolicyOnly']> | null = null;
   try {
+    spatial = tf.tensor4d(evalSpatialV7, [1, BOARD_SIZE, BOARD_SIZE, 22]);
+    global = tf.tensor2d(evalGlobalV7, [1, 19]);
+    meta = tf.tensor2d(metaRow, [1, metaRow.length]);
+    out = net.forwardPolicyOnly(spatial, global, meta);
     const [policyArr, passArr] = await Promise.all([out.policy.data(), out.policyPass.data()]);
     const channels = net.policyOutChannels;
     const logits = new Float32Array(BOARD_AREA + 1);
@@ -413,11 +417,11 @@ async function computeHumanPolicyLogits(args: {
     logits[BOARD_AREA] = (passArr as Float32Array)[0]!;
     return logits;
   } finally {
-    spatial.dispose();
-    global.dispose();
-    meta.dispose();
-    out.policy.dispose();
-    out.policyPass.dispose();
+    spatial?.dispose();
+    global?.dispose();
+    meta?.dispose();
+    out?.policy.dispose();
+    out?.policyPass.dispose();
   }
 }
 
@@ -494,14 +498,22 @@ async function handleMessage(msg: KataGoWorkerRequest): Promise<void> {
       outGlobal: evalGlobalV7,
     });
 
-    const spatial = tf.tensor4d(evalSpatialV7, [1, boardSize, boardSize, 22]);
-    const global = tf.tensor2d(evalGlobalV7, [1, 19]);
-    const out = model.forwardValueOnly(spatial, global);
-    const [valueLogitsArr, scoreValueArr] = await Promise.all([out.value.data(), out.scoreValue.data()]);
-    spatial.dispose();
-    global.dispose();
-    out.value.dispose();
-    out.scoreValue.dispose();
+    let spatial: tf.Tensor4D | null = null;
+    let global: tf.Tensor2D | null = null;
+    let out: ReturnType<KataGoModelV8Tf['forwardValueOnly']> | null = null;
+    let valueLogitsArr: Awaited<ReturnType<tf.Tensor['data']>>;
+    let scoreValueArr: Awaited<ReturnType<tf.Tensor['data']>>;
+    try {
+      spatial = tf.tensor4d(evalSpatialV7, [1, boardSize, boardSize, 22]);
+      global = tf.tensor2d(evalGlobalV7, [1, 19]);
+      out = model.forwardValueOnly(spatial, global);
+      [valueLogitsArr, scoreValueArr] = await Promise.all([out.value.data(), out.scoreValue.data()]);
+    } finally {
+      spatial?.dispose();
+      global?.dispose();
+      out?.value.dispose();
+      out?.scoreValue.dispose();
+    }
 
     const evaled = postprocessKataGoV8({
       nextPlayer: msg.currentPlayer,
@@ -570,14 +582,22 @@ async function handleMessage(msg: KataGoWorkerRequest): Promise<void> {
       });
     }
 
-    const spatial = tf.tensor4d(spatialBatch, [batch, size, size, 22]);
-    const global = tf.tensor2d(globalBatch, [batch, 19]);
-    const out = model.forwardValueOnly(spatial, global);
-    const [valueLogitsArr, scoreValueArr] = await Promise.all([out.value.data(), out.scoreValue.data()]);
-    spatial.dispose();
-    global.dispose();
-    out.value.dispose();
-    out.scoreValue.dispose();
+    let spatial: tf.Tensor4D | null = null;
+    let global: tf.Tensor2D | null = null;
+    let out: ReturnType<KataGoModelV8Tf['forwardValueOnly']> | null = null;
+    let valueLogitsArr: Awaited<ReturnType<tf.Tensor['data']>>;
+    let scoreValueArr: Awaited<ReturnType<tf.Tensor['data']>>;
+    try {
+      spatial = tf.tensor4d(spatialBatch, [batch, size, size, 22]);
+      global = tf.tensor2d(globalBatch, [batch, 19]);
+      out = model.forwardValueOnly(spatial, global);
+      [valueLogitsArr, scoreValueArr] = await Promise.all([out.value.data(), out.scoreValue.data()]);
+    } finally {
+      spatial?.dispose();
+      global?.dispose();
+      out?.value.dispose();
+      out?.scoreValue.dispose();
+    }
 
     const scoreChannels = model.scoreValueChannels;
     const evals = new Array(batch);
