@@ -83,8 +83,15 @@ class App {
 
   /* ================= 主题 ================= */
 
+  /** 页面中的两条 theme-color 按系统配色匹配；手动主题可与系统不同，统一改为当前主题色。 */
+  private syncThemeColor(): void {
+    const color = document.documentElement.dataset.theme === 'light' ? '#faf8fe' : '#14101c';
+    document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', color));
+  }
+
   applyTheme(theme: 'light' | 'dark'): void {
     document.documentElement.dataset.theme = theme;
+    this.syncThemeColor();
     this.settings.theme = theme;
     LS.set('settings', this.settings);
     this.renderer.refreshPalette();
@@ -1141,6 +1148,7 @@ class App {
   init(): void {
     const preferLight = !window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.dataset.theme = this.settings.theme || (preferLight ? 'light' : 'dark');
+    this.syncThemeColor();
     document.documentElement.dataset.accent = isAccentName(this.settings.accent) ? this.settings.accent : 'purple';
     this.renderer.refreshPalette();
 
