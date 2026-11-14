@@ -802,11 +802,18 @@ class App {
     }
     scrim.hidden = false;
     this.dialogOpen = true;
-    // 选择器列表按 DOM 顺序匹配，并不按逗号前后的优先级；先单独查找选中配色。
-    const btn = dialog.querySelector<HTMLElement>('.swatch.sel')
-      ?? dialog.querySelector<HTMLElement>('.btn-pill.primary, button:not(:disabled)');
-    if (btn) setTimeout(() => {
-      if (this.dialogOpen && this.dialogRevision === rev) btn.focus();
+    // 选择器列表按 DOM 顺序匹配，并不按逗号前后的优先级；按优先级查找可见可聚焦控件，
+    // 并在延时聚焦时重新读取，避免弹窗随后隐藏主按钮（如下载进度视图）导致焦点丢失。
+    const pickFocus = (): HTMLElement | null => {
+      for (const selector of ['.swatch.sel:not(:disabled)', '.btn-pill.primary:not(:disabled)', 'button:not(:disabled)']) {
+        for (const el of dialog.querySelectorAll<HTMLElement>(selector)) {
+          if (el.getClientRects().length > 0) return el;
+        }
+      }
+      return null;
+    };
+    setTimeout(() => {
+      if (this.dialogOpen && this.dialogRevision === rev) pickFocus()?.focus();
     }, 30);
   }
 
