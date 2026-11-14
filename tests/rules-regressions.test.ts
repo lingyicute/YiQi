@@ -111,6 +111,34 @@ describe('规则边界与导出回归', () => {
     expect(game.isLegal(4, 4)).toBe(true);
   });
 
+  it('未提子却重现历史局面：落点仅邻空点（无对方邻子）时同样按全局同形拒绝', () => {
+    // 白在黑围住的 3×3 角内行棋，黑 (1,1) 提走白 8 子后白停一手；
+    // 此时 (0,0) 只邻接空点，黑复落 (0,0) 虽未提子，却回到先前局面。
+    const game = new GoGame(9);
+    for (const [x, y] of [[3, 0], [3, 1], [3, 2], [0, 3], [1, 3], [2, 3], [0, 0], [1, 1]] as const) {
+      game.place(x, y);
+      game.pass();
+    }
+    game.pass();
+    for (const [x, y] of [[1, 0], [0, 1], [2, 1], [1, 2], [0, 0], [2, 0], [0, 2]] as const) {
+      game.place(x, y);
+      game.pass();
+    }
+    game.place(2, 2);
+    game.place(1, 1);
+    game.pass();
+    const board = game.board.map((row) => row.slice());
+    expect(game.isLegal(0, 0)).toBe(false);
+    let code: string | null = null;
+    try {
+      game.place(0, 0);
+    } catch (err) {
+      code = (err as IllegalMoveError).code;
+    }
+    expect(code).toBe('superko');
+    expect(game.board).toEqual(board);
+  });
+
   it.each([1, 7, 2026])('isLegal 与 place 的判定一致（9 路随机对局，seed %i）', (seed) => {
     const game = new GoGame(9);
     let state = seed;
