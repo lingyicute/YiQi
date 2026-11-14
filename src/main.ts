@@ -101,11 +101,11 @@ $('modes').addEventListener('click', (e) => {
   const chip = (e.target as HTMLElement).closest('.chip') as HTMLElement | null;
   if (!chip) return;
   const mode = chip.dataset.mode!;
-  if (mode === app.mode) return;
   if (mode.startsWith('ai-') && !app.ai.ready) {
-    app.showDownloadDialog();
+    void app.showDownloadDialog();
     return;
   }
+  if (mode === app.mode) return;
   app.setMode(mode);
 });
 
