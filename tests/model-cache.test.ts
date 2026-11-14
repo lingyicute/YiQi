@@ -15,7 +15,7 @@ describe('model cache validation', () => {
     const cache = cached('good'); const progress = vi.fn();
     expect(await (await loadModelFile(cache as unknown as Cache, url, 4, progress)).text()).toBe('good');
     expect(fetch).not.toHaveBeenCalled();
-    expect(progress).toHaveBeenCalledWith(4);
+    expect(progress).toHaveBeenCalledWith(4, true);
   });
   it('evicts corrupt cache and replaces it with a validated download', async () => {
     const cache = cached('bad');
