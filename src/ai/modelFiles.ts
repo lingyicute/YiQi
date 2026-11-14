@@ -147,6 +147,7 @@ export async function prepareModels(
   signal?.throwIfAborted();
 
   // 无缓存/写缓存失败时也必须下载并使用主网络，而非让 Worker 再 fetch 静态路径。
+  const mainDecoded: { raw: Blob | null } = { raw: null };
   const mainBlob = await loadModelFile(cache, withBase(MAIN_MODEL_PATH), MAIN_MODEL_TOTAL_BYTES, (got, fromCache) => {
     counters.main += got;
     if (fromCache) counters.cached += got;
@@ -158,11 +159,12 @@ export async function prepareModels(
     if (raw.size !== MAIN_MODEL_RAW_BYTES) {
       throw new Error(`主模型解压结果异常：${raw.size}B，期望 ${MAIN_MODEL_RAW_BYTES}B`);
     }
+    mainDecoded.raw = raw;
   });
   signal?.throwIfAborted();
   const humanModelUrl = URL.createObjectURL(humanRaw);
   try {
-    return { humanModelUrl, humanBlob: humanRaw, mainModelUrl: URL.createObjectURL(mainBlob) };
+    return { humanModelUrl, humanBlob: humanRaw, mainModelUrl: URL.createObjectURL(mainDecoded.raw ?? mainBlob) };
   } catch (err) {
     revokeModelUrl(humanModelUrl);
     throw err;
