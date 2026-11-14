@@ -263,9 +263,10 @@ document.addEventListener('keydown', (e) => {
   // 浏览器/系统快捷键（Ctrl+R 刷新、Ctrl+P 打印等）不应触发游戏操作
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const active = document.activeElement as HTMLElement | null;
-  if (active && (active.isContentEditable || active.closest('button,a,input,textarea,select,[role="button"],[role="menuitem"],[contenteditable="true"]'))) return;
-  const tag = (active && active.tagName) || '';
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (active && (active.isContentEditable || active.closest('input,textarea,select,[contenteditable="true"]'))) return;
+  // 鼠标点过按钮后焦点会留在按钮上：回车/空格留给该控件原生激活，其余快捷键照常生效
+  const onControl = !!active?.closest('button,a,[role="button"],[role="menuitem"]');
+  if (onControl && (k === 'Enter' || k === ' ')) return;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(k)) e.preventDefault();
   const n = app.game.size;
   const mv: Record<string, [number, number]> = {
@@ -281,6 +282,8 @@ document.addEventListener('keydown', (e) => {
     app.renderer.kbdCursor = true;
     app.renderer.hover = null;
     app.renderer.scheduleDraw();
+    // 光标已启用：焦点移回棋盘，随后的回车/空格才会落子而非再次触发按钮
+    if (onControl) canvas.focus({ preventScroll: true });
     return;
   }
   // 按住不放只对光标移动有意义；停一手、悔棋、重开不能被连发
