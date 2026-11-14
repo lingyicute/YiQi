@@ -22,6 +22,12 @@ export function starPoints(n: number): Array<[number, number]> {
 
 const GTP_LETTERS = 'ABCDEFGHJKLMNOPQRST';
 
+/** 系统「减弱动态效果」偏好：CSS 过渡已由样式表禁用，画布落子动画需在此单独响应。 */
+const reducedMotion: MediaQueryList | null =
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : null;
+
 function hex2rgb(h: string): number[] {
   return [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 }
@@ -329,7 +335,8 @@ export class BoardRenderer {
 
     /* 棋子（最后一手带落子动画）+ 死子淡化 */
     const last = st.lastMove;
-    const animT = last && last.x >= 0 ? Math.min(1, Math.max(0, (now - last.at) / 150)) : 1;
+    const animate = last !== null && last.x >= 0 && !reducedMotion?.matches;
+    const animT = animate ? Math.min(1, Math.max(0, (now - last.at) / 150)) : 1;
     for (let y = 0; y < n; y++) {
       for (let x = 0; x < n; x++) {
         const p = st.board[y]![x]!;
@@ -368,6 +375,6 @@ export class BoardRenderer {
       }
     }
 
-    if (last && last.x >= 0 && animT < 1) this.scheduleDraw();
+    if (animate && animT < 1) this.scheduleDraw();
   }
 }
