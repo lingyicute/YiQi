@@ -157,7 +157,7 @@ export class AiPlayer {
 
   /**
    * 为当前局面计算 AI 的一手（可能为停一手）。
-   * 返回前保证至少 elapsed 至 delayTarget 毫秒，落子节奏更像人。
+   * 主网络搜索决定是否停一手，人类网络策略决定具体落点；被 cancel() 作废时抛出 'canceled'。
    */
   async chooseMove(args: {
     difficulty: Difficulty;
