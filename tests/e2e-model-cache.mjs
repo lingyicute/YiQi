@@ -23,7 +23,7 @@ try {
     passed++; console.log(`✓ model setup uses exactly five network requests (Cache Storage: ${cacheAvailable})`);
     if (cacheAvailable) {
       const before = requests.length;
-      await page.route('**/ai/**', route => route.abort());
+      await page.route(url => url.pathname.startsWith('/ai/'), route => route.abort());
       await page.reload({ waitUntil: 'networkidle' });
       await page.waitForFunction(() => window.yiqi.ai.ready, null, { timeout: 30000 });
       assert.equal(requests.length, before, 'cached model setup must not access static model URLs');
