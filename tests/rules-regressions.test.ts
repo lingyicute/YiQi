@@ -89,6 +89,28 @@ describe('规则边界与导出回归', () => {
     expect(game.isRemoved(8, 8)).toBe(true);
   });
 
+  it('未提子的着法重现历史局面时同样按全局同形拒绝', () => {
+    const game = new GoGame(9);
+    // 黑 (0,0)(1,0) 两子被白 (2,0) 提走，黑于 (1,0) 回提后白停一手；
+    // 黑再下 (0,0) 不提子，却回到第 7 手后的局面。
+    for (const [x, y] of [[3, 0], [0, 1], [2, 1], [1, 1], [0, 0], [8, 8], [1, 0], [2, 0], [1, 0]] as const) {
+      game.place(x, y);
+    }
+    game.pass();
+    const board = game.board.map((row) => row.slice());
+    expect(game.isLegal(0, 0)).toBe(false);
+    let code: string | null = null;
+    try {
+      game.place(0, 0);
+    } catch (err) {
+      code = (err as IllegalMoveError).code;
+    }
+    expect(code).toBe('superko');
+    expect(game.board).toEqual(board);
+    expect(game.moveNumber).toBe(10);
+    expect(game.isLegal(4, 4)).toBe(true);
+  });
+
   it.each([1, 7, 2026])('isLegal 与 place 的判定一致（9 路随机对局，seed %i）', (seed) => {
     const game = new GoGame(9);
     let state = seed;

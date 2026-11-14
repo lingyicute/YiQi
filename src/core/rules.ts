@@ -65,6 +65,8 @@ export class GoGame {
   private _probeSeen: Uint32Array;
   private _probeQueue: Int32Array;
   private _probeStamp = 0;
+  /** 各点曾被哪一方落子占据（位 1 黑、位 2 白），供全局同形判定剪枝。 */
+  private _everOccupied: Uint8Array;
 
   constructor(size: number) {
     this.size = size;
@@ -72,6 +74,7 @@ export class GoGame {
     this._probeCells = new Uint8Array(area);
     this._probeSeen = new Uint32Array(area);
     this._probeQueue = new Int32Array(area);
+    this._everOccupied = new Uint8Array(area);
     this.engine = GoGame.createEngine(size);
     this.recordRepetition();
   }
@@ -131,6 +134,7 @@ export class GoGame {
       throw new IllegalMoveError(probe.code, illegalMoveMessage(probe.code));
     }
     this.engine.place(x, y, false, false, true, true);
+    this._everOccupied[y * this.size + x]! |= this._currentPlayerCache === 'black' ? 1 : 2;
     this._moves.push({ x, y });
     this.recordRepetition(probe.posKey);
   }
@@ -161,7 +165,10 @@ export class GoGame {
     if (x < n - 1) { const v = board[y]![x + 1]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
     if (y > 0) { const v = board[y - 1]![x]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
     if (y < n - 1) { const v = board[y + 1]![x]!; if (v === 0) hasEmptyNeighbor = true; else if (v === opp) hasOppNeighbor = true; }
-    if (hasEmptyNeighbor && !hasOppNeighbor) return { code: null };
+    // 未提子的着法只有落在己方曾占据（其后被提走）的点上，才可能重现历史局面。
+    const at = y * n + x;
+    const mayRepeat = (this._everOccupied[at]! & me) !== 0;
+    if (hasEmptyNeighbor && !hasOppNeighbor && !mayRepeat) return { code: null };
 
     const area = n * n;
     const cells = this._probeCells;
@@ -170,7 +177,6 @@ export class GoGame {
       const off = j * n;
       for (let i = 0; i < n; i++) cells[off + i] = row[i]!;
     }
-    const at = y * n + x;
     cells[at] = me;
     const seen = this._probeSeen;
     const queue = this._probeQueue;
@@ -234,10 +240,9 @@ export class GoGame {
       return { code: 'suicide' };
     }
 
-    // 未提子的着法不可能重现历史局面（当前全盘棋子仍在，历史局面不可能恰好
-    // 多出落点这一子——提走它的那串“最后一手”必然留存至今，构成矛盾），
-    // 因此多数探测无需构造局面键。
-    if (capturedCount === 0) return { code: null };
+    // 未提子且落点从未被己方占据时不可能重现历史局面，多数探测无需构造局面键。
+    // 反例：两子被提、回提一子后对方停一手，再补回另一子即回到被提前的局面。
+    if (capturedCount === 0 && !mayRepeat) return { code: null };
     const posKey = positionalKeyOfCells(cells, n);
     if (this._positionKeys.has(posKey)) {
       return { code: capturedCount === 1 && posKey === this._prevPosKey ? 'ko' : 'superko' };
@@ -271,6 +276,7 @@ export class GoGame {
     this._moves = next._moves;
     this._repetitionKeys = next._repetitionKeys;
     this._positionKeys = next._positionKeys;
+    this._everOccupied = next._everOccupied;
     this._lastPosKey = next._lastPosKey;
     this._prevPosKey = next._prevPosKey;
     this._currentPlayerCache = next._currentPlayerCache;
