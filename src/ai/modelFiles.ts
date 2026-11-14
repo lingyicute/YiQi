@@ -102,14 +102,15 @@ export async function prepareModels(
 ): Promise<ModelPrepareResult> {
   const cache = await openCache();
   const started = Date.now();
-  const counters = { human: 0, main: 0 };
+  const counters = { human: 0, main: 0, cached: 0 };
   const report = () => {
     const received = counters.human + counters.main;
     const elapsed = Math.max(0.001, (Date.now() - started) / 1000);
     onProgress({
       receivedBytes: received,
       totalBytes: TOTAL_DOWNLOAD_BYTES,
-      bytesPerSecond: received / elapsed,
+      // 缓存命中的字节未经网络，计入会让断点重试时的网速虚高
+      bytesPerSecond: (received - counters.cached) / elapsed,
     });
   };
 
@@ -120,8 +121,9 @@ export async function prepareModels(
   for (let i = 0; i < HUMAN_MODEL_SHARDS.length; i++) {
     const shard = HUMAN_MODEL_SHARDS[i]!;
     const expected = HUMAN_SHARD_BYTES[i]!;
-    const blob = await loadModelFile(cache, withBase(shard), expected, (got) => {
+    const blob = await loadModelFile(cache, withBase(shard), expected, (got, fromCache) => {
       counters.human += got;
+      if (fromCache) counters.cached += got;
       report();
     }, signal);
     shardBlobs.push(blob);
@@ -145,8 +147,9 @@ export async function prepareModels(
   signal?.throwIfAborted();
 
   // 无缓存/写缓存失败时也必须下载并使用主网络，而非让 Worker 再 fetch 静态路径。
-  const mainBlob = await loadModelFile(cache, withBase(MAIN_MODEL_PATH), MAIN_MODEL_TOTAL_BYTES, (got) => {
+  const mainBlob = await loadModelFile(cache, withBase(MAIN_MODEL_PATH), MAIN_MODEL_TOTAL_BYTES, (got, fromCache) => {
     counters.main += got;
+    if (fromCache) counters.cached += got;
     report();
   }, signal, async (blob) => {
     // 主模型过去只校验 gzip 字节数，同尺寸损坏会在 Worker 初始化时反复失败。

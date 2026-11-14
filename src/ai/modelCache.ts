@@ -5,7 +5,8 @@ export async function loadModelFile(
   cache: Cache | null,
   url: string,
   expectedBytes: number,
-  onChunk: (bytes: number) => void,
+  /** fromCache 为真表示这些字节来自缓存而非网络。 */
+  onChunk: (bytes: number, fromCache?: boolean) => void,
   signal?: AbortSignal,
   validate?: ModelValidator,
 ): Promise<Blob> {
@@ -27,7 +28,7 @@ export async function loadModelFile(
           }
           signal?.throwIfAborted();
           if (valid) {
-            onChunk(blob.size);
+            onChunk(blob.size, true);
             return blob;
           }
         } else {
