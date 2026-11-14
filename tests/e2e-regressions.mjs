@@ -276,6 +276,15 @@ try {
     assert.equal(await page.evaluate(() => window.yiqi.game.board[1][0]), 1);
     assert.equal(await page.evaluate(() => window.yiqi.phase), 'play');
   });
+
+  await test('manual theme toggle keeps both theme-color metas in sync', async page => {
+    await page.click('#btnTheme');
+    const [theme, colors] = await page.evaluate(() => [
+      document.documentElement.dataset.theme,
+      [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content),
+    ]);
+    assert.deepEqual(colors, Array(2).fill(theme === 'light' ? '#faf8fe' : '#14101c'));
+  });
 } finally {
   await browser.close();
 }
