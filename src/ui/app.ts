@@ -1159,9 +1159,16 @@ class App {
   /* ================= 初始化 ================= */
 
   init(): void {
-    const preferLight = !window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.dataset.theme = this.settings.theme || (preferLight ? 'light' : 'dark');
+    const colorScheme = window.matchMedia('(prefers-color-scheme: dark)');
+    document.documentElement.dataset.theme = this.settings.theme || (colorScheme.matches ? 'dark' : 'light');
     this.syncThemeColor();
+    colorScheme.addEventListener('change', (e) => {
+      // null 表示跟随系统；手动选择主题后不再响应系统配色变化。
+      if (this.settings.theme !== null) return;
+      document.documentElement.dataset.theme = e.matches ? 'dark' : 'light';
+      this.syncThemeColor();
+      this.renderer.refreshPalette();
+    });
     document.documentElement.dataset.accent = isAccentName(this.settings.accent) ? this.settings.accent : 'purple';
     this.renderer.refreshPalette();
 

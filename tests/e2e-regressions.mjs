@@ -286,6 +286,20 @@ try {
     assert.deepEqual(colors, Array(2).fill(theme === 'light' ? '#faf8fe' : '#14101c'));
   });
 
+  await test('automatic theme follows system changes until manually locked', async page => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('meta[name="theme-color"]')].map(m => m.content)), ['#14101c', '#14101c']);
+    await page.click('#btnTheme');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.waitForTimeout(30);
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'light');
+    assert.equal(await page.evaluate(() => window.yiqi.settings.theme), 'light');
+  });
+
   await test('a restored AI game survives the fallback to two-player mode', async page => {
     await page.waitForFunction(() => window.yiqi.wasmUnsupported && window.yiqi.mode === 'pvp');
     assert.equal(await page.evaluate(() => window.yiqi.game.moveNumber), 2);
