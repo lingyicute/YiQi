@@ -731,7 +731,7 @@ class App {
       this.aiDownloadDismissed = true;
       // AI 永远无法就绪：留在人机模式（含默认的「困难」与恢复的存档）会在 AI 回合无限等待
       if (this.mode.startsWith('ai-')) {
-        this.setMode('pvp', { toast: false });
+        this.setMode('pvp', { toast: false, keepGame: true });
         this.toast('当前浏览器不支持 WASM，已切换到双人对战');
       }
       this.updateAILock();
@@ -1097,20 +1097,29 @@ class App {
   skipDownload(): void {
     this.aiDownloadDismissed = true;
     this.closeDialog();
-    // 跳过后 AI 不可用，留在人机模式会无法应答——直接切到双人对战
-    if (this.mode.startsWith('ai-')) this.setMode('pvp', { toast: false });
+    // 跳过后 AI 不可用，留在人机模式会无法应答——直接切到双人对战（进行中的棋局保留）
+    if (this.mode.startsWith('ai-')) this.setMode('pvp', { toast: false, keepGame: true });
     this.toast('已跳过：双人对战可用，AI 模型可在菜单中随时下载');
     this.updateAILock();
   }
 
-  /** 切换模式（同步 chips/执子区 UI、开新对局）。 */
-  setMode(mode: string, opts: { toast?: boolean } = {}): void {
+  /** 切换模式（同步 chips/执子区 UI、开新对局；keepGame 时保留进行中的棋局）。 */
+  setMode(mode: string, opts: { toast?: boolean; keepGame?: boolean } = {}): void {
     this.mode = mode;
     this.settings.mode = mode;
     this.saveSettings();
     document.querySelectorAll('#modes .chip').forEach((c) => c.classList.toggle('sel', (c as HTMLElement).dataset.mode === mode));
     $('sides').style.display = mode === 'pvp' ? 'none' : 'flex';
-    this.newGame();
+    if (opts.keepGame && this.game.moveNumber > 0 && !this.over) {
+      // 只作废等待中的 AI 调度，棋局与计时原样延续
+      this.ai.cancel();
+      this.aiToken++;
+      this.aiThinking = false;
+      this.updateHUD();
+      this.saveSession();
+    } else {
+      this.newGame();
+    }
     if (opts.toast !== false) this.toast(mode === 'pvp' ? '双人对战开始' : '人机对战 · ' + $('modes').querySelector(`[data-mode="${mode}"]`)?.textContent?.trim());
   }
 

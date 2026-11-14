@@ -285,6 +285,14 @@ try {
     ]);
     assert.deepEqual(colors, Array(2).fill(theme === 'light' ? '#faf8fe' : '#14101c'));
   });
+
+  await test('a restored AI game survives the fallback to two-player mode', async page => {
+    await page.waitForFunction(() => window.yiqi.wasmUnsupported && window.yiqi.mode === 'pvp');
+    assert.equal(await page.evaluate(() => window.yiqi.game.moveNumber), 2);
+    assert.equal(await page.evaluate(() => window.yiqi.game.board[2][2]), 1);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('yiqi.session')).mode), 'pvp');
+    assert.equal(await page.evaluate(() => document.getElementById('btnPass').disabled), false);
+  }, { settings: { mode: 'ai-hard', boardSize: 9, sound: false }, save: { mode: 'ai-hard', side: 'W', size: 9, moves: [{ x: 2, y: 2 }, { x: 6, y: 6 }], elapsed: 5, over: false } });
 } finally {
   await browser.close();
 }
