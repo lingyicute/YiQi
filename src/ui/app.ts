@@ -25,9 +25,6 @@ const SUBTITLE: Record<string, string> = {
 const MODE_TO_DIFF: Record<string, Difficulty> = {
   'ai-easy': 'easy', 'ai-medium': 'medium', 'ai-hard': 'hard', 'ai-expert': 'expert',
 };
-const SIZE_LABEL: Record<number, string> = { 9: '9路', 13: '13路', 19: '19路' };
-void SIZE_LABEL;
-
 const fmtTime = (s: number): string => {
   const m = Math.floor(s / 60), ss = s % 60;
   return `${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
@@ -279,7 +276,7 @@ class App {
       else this.game.place(x, y);
     } catch (err) {
       if (err instanceof IllegalMoveError) {
-        // 超级劫拒绝时 GoGame 内部会重建引擎，board 数组引用已更换，必须重新同步渲染器
+        // 规则层拒绝时棋盘不变；防御性地重新同步 board 引用（GoGame 重建引擎时会更换数组）
         this.syncBoard();
         this.toast(illegalMessage(err.code));
         return false;

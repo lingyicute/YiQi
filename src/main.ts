@@ -2,7 +2,7 @@
  * YiQi 入口：装配 UI、绑定事件。
  */
 import { App } from './ui/app';
-import { BLACK } from './ui/board';
+import { BLACK, WHITE } from './ui/board';
 import { playStoneSound } from './ui/sounds';
 import { emptyRecords } from './ui/settings';
 
@@ -125,7 +125,7 @@ $('sides').addEventListener('click', (e) => {
   if (!chip) return;
   const side = chip.dataset.side as 'B' | 'W';
   if (!side || side === app.settings.side) return;
-  app.humanColor = side === 'W' ? 2 : BLACK;
+  app.humanColor = side === 'W' ? WHITE : BLACK;
   app.settings.side = side;
   app.saveSettings();
   document.querySelectorAll('#sides .chip').forEach((c) => c.classList.toggle('sel', (c as HTMLElement).dataset.side === side));
