@@ -951,7 +951,8 @@ class App {
       this.webgpuMissing = !(await webgpuAvailable());
       this.updateAILock();
     }
-    if (this.dialogRevision !== rev && this.dialogOpen) return;
+    // 关闭同样会使请求过期；不能在用户已关闭原弹窗或替代弹窗后重新打开下载。
+    if (this.dialogRevision !== rev) return;
     if (this.wasmUnsupported) {
       this.openDialog(`
       <div class="dlg-icon">${ICO.chip}</div>
