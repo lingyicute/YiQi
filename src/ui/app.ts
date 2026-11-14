@@ -149,8 +149,19 @@ class App {
     this.renderer.state.scoring = this.phase === 'scoring';
     this.renderer.state.previewColor = (this.game.playerToMove === 'black' ? BLACK : WHITE);
     $('subtitle').textContent = SUBTITLE[this.mode] || '';
-    const sizeChips = document.querySelectorAll('#sizes .chip');
-    sizeChips.forEach((c) => c.classList.toggle('sel', Number((c as HTMLElement).dataset.size) === this.game.size));
+    const syncChip = (chip: HTMLElement, selected: boolean): void => {
+      chip.classList.toggle('sel', selected);
+      chip.setAttribute('aria-pressed', String(selected));
+    };
+    document.querySelectorAll<HTMLElement>('#modes .chip').forEach((chip) => {
+      syncChip(chip, chip.dataset.mode === this.mode);
+    });
+    document.querySelectorAll<HTMLElement>('#sizes .chip').forEach((chip) => {
+      syncChip(chip, Number(chip.dataset.size) === this.game.size);
+    });
+    document.querySelectorAll<HTMLElement>('#sides .chip').forEach((chip) => {
+      syncChip(chip, chip.dataset.side === (this.humanColor === BLACK ? 'B' : 'W'));
+    });
     this.updateAILock();
   }
 
